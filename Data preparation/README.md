@@ -17,5 +17,6 @@
  4. api.json: API keys for FRED and NASDAQ link
  5. metadata: independent variable names and their full name
  6. Macro_SP.csv: combined raw data on day level
- 7. Macro_SP_MoM.csv: percent change of indexes(month on month)
- 8. Macro_SP_QoQ.csv: perchent change of indexes(quarter on quarter)
+ 7. Macro_SP_month.csv: combined raw data on month level
+ 8. Macro_SP_MoM.csv: percent change of indexes(month on month)
+ 9. Macro_SP_QoQ.csv: perchent change of indexes(quarter on quarter)
