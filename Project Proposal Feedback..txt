@@ -1,0 +1,6 @@
+Team 11 Project Proposal Feedback:
+Parth Gada (pgada7@gatech.edu)
+
+I really like the topic and busines justification of your project as it is really relevant to today's times. In terms of your datasets, please try to get your hands on the CRSP/COMPUSTAT dataset from WRDS, as it is more comprehensive with more variables than Yfinance data. Also, make sure you are lagging your stock returns data as the effect of the macroeconomic changes wont be seeen immediately in the stock market. Your economic variables look solid and I would lean more towards a machine learning solution, but feel free to choose whether you want to use it or not. Apart from that, the proposal looks good.
+
+Feel free to reach out to me in case of any questions. 
