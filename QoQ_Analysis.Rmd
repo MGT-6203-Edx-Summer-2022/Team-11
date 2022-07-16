@@ -1,0 +1,585 @@
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Libraries and Data
+
+```{r libraries and data}
+
+#-------------------------------------------------------------------------------
+# Libraries
+#-------------------------------------------------------------------------------
+library(tidyverse)
+library(corrplot)
+library(lubridate)
+library(anytime)
+library(car)
+library(leaps)
+library(caret)
+library(glmnet)
+
+#-------------------------------------------------------------------------------
+# Load Quarterly Data
+#-------------------------------------------------------------------------------
+# Load  data
+df <- read.table('QoQ.txt', sep= ',', quote= '', header = TRUE)
+df <- subset(df,select=-c(date))
+
+# Convert date column to date format
+# Macro_SP_QoQ <- as.Date(anytime(Macro_SP_QoQ$date))
+
+# Remove Shiller_PE
+Macro_SP_QoQ <- subset(df, select=-c(shiller_PE))
+
+# summarize data
+head(Macro_SP_QoQ)
+summary(Macro_SP_QoQ)
+```
+
+## Exploratory Data Analysis
+
+```{r EDA}
+# histogram, QQ Plot, Box plot of SP500
+hist(Macro_SP_QoQ$SP500, xlab='S&P Quarterly returns', 
+     main='S&P Quarterly return distribution from 1967 to 2021',
+     breaks = 40, col='lightblue', ylim=c(0,100))
+qqnorm(Macro_SP_QoQ$SP500)
+boxplot(Macro_SP_QoQ$SP500, las=1, horizontal = TRUE, main='SP500 boxplot')
+
+# remove outliers
+SP_outliers <- c(501, 637, 250,249)
+SP500_adj <- Macro_SP_QoQ$SP500[-SP_outliers]
+
+# check for normality and outliers
+qqnorm(SP500_adj)
+shapiro.test(SP500_adj)
+```
+
+```{r}
+corrplot(cor(Macro_SP_QoQ[names(Macro_SP_QoQ)!='SP500']), order='AOE')
+
+# check VIF for each independent variables
+
+model <- lm(SP500~., Macro_SP_QoQ)
+summary(model)
+
+# plot vif and find vif value higher than 5
+barplot(vif(model), main='VIF values', col='lightblue', las =2)
+abline(h=5, lwd=3,lty=2)
+
+# solutions to address multicolinearity and adjusted datasets
+
+sol1_removed <- c('UNRATE', 'GDP', 'PAYEMS', 'BOGZ1FA895050005Q')
+sol2_removed <- c('UNRATE', 'GDP', 'GDPC1')
+sol3_removed <- c('PAYEMS', 'GDP', 'GDPC1')
+Macro_SP_QoQ_sol1 <- Macro_SP_QoQ[,-which(colnames(Macro_SP_QoQ) %in% sol1_removed)]
+Macro_SP_QoQ_sol2 <- Macro_SP_QoQ[,-which(colnames(Macro_SP_QoQ) %in% sol2_removed)]
+Macro_SP_QoQ_sol3 <- Macro_SP_QoQ[,-which(colnames(Macro_SP_QoQ) %in% sol3_removed)]
+
+```
+
+## Stepwise Linear Regression (original dataset)
+
+```{r stepwise regression}
+#create null and full models
+m0 <- lm(SP500 ~ 1, data = Macro_SP_QoQ)
+m1 <- lm(SP500 ~ ., data = Macro_SP_QoQ)
+
+```
+
+```{r forward}
+forward <- step(m0, scope = list(lower = m0, upper = m1),
+                direction = "forward", k = log(NROW(Macro_SP_QoQ$SP500)), trace = 0)
+summary(forward)
+forward$anova
+extractAIC(forward) 
+
+# keep UMSCENT, PERMIT
+
+```
+
+```{r backward}
+
+backward <- step(m1, scope = list(lower = m0, upper = m1),
+                direction = "backward", k = log(NROW(Macro_SP_QoQ$SP500)), trace = 0)
+summary(backward)
+backward$anova
+extractAIC(backward) 
+
+# keep INDPRO, DGS10, W068RCQ027SBEA, ICSA, DSPIC96, DFF, PPIACO, PAYEMS
+
+```
+
+```{r both}
+both <- step(m0, scope = list(lower = m0, upper = m1),
+                direction = "both", k = log(NROW(Macro_SP_QoQ$SP500)), trace = 0)
+summary(both)
+both$anova
+extractAIC(both) 
+#same model as forward selection
+
+```
+
+```{r exhaustive search using leaps}
+
+leaps_model <- regsubsets(Macro_SP_QoQ$SP500 ~ ., 
+                                 data = Macro_SP_QoQ, nvmax = 19)
+s <- summary(leaps_model)
+print(s)
+
+plot(leaps_model, scale = "bic")
+
+plot(s$adjr2, xlab = "No. of variables", ylab = "Adjusted R Squared")
+points(which.max(s$adjr2), s$adjr2[which.max(s$adjr2)],pch = 19, col = 'red')
+
+plot(s$cp, xlab = "No. of variables", ylab = "AIC")
+points(which.min(s$cp), s$cp[which.min(s$cp)],pch = 19, col = 'red')
+
+# Using Mallow's Criterion, p = 10 predictor variables
+
+plot(s$bic, xlab = "No. of variables", ylab = "BIC")
+points(which.min(s$bic), s$bic[which.min(s$bic)],pch = 19, col = 'red')
+
+final_leaps <- regsubsets(Macro_SP_QoQ$SP500 ~ ., 
+                                 data = Macro_SP_QoQ, nvmax = 9)
+plot(final_leaps, scale = "bic")
+
+```
+
+
+## Stepwise Linear Regression (sol1 data  set)
+
+```{r stepwise regression}
+#create null and full models
+m0 <- lm(SP500 ~ 1, data = Macro_SP_QoQ_sol1)
+m1 <- lm(SP500 ~ ., data = Macro_SP_QoQ_sol1)
+
+```
+
+```{r forward}
+forward <- step(m0, scope = list(lower = m0, upper = m1),
+                direction = "forward", k = log(NROW(Macro_SP_QoQ_sol1$SP500)), trace = 0)
+summary(forward)
+forward$anova
+extractAIC(forward) 
+
+# keep UMSCENT, PERMIT
+```
+
+```{r backward}
+
+backward <- step(m1, scope = list(lower = m0, upper = m1),
+                direction = "backward", k = log(NROW(Macro_SP_QoQ_sol1$SP500)), trace = 0)
+summary(backward)
+backward$anova
+extractAIC(backward) 
+# keep CPIAUCSL, UMSCENT, CPILFESL, PERMIT
+```
+
+```{r both}
+both <- step(m0, scope = list(lower = m0, upper = m1),
+                direction = "both", k = log(NROW(Macro_SP_QoQ_sol1$SP500)), trace = 0)
+summary(both)
+both$anova
+extractAIC(both) 
+# same model as forward selection
+```
+
+```{r exhaustive search using leaps}
+
+leaps_model <- regsubsets(Macro_SP_QoQ_sol1$SP500 ~ ., 
+                                 data = Macro_SP_QoQ_sol1, nvmax = 19)
+s <- summary(leaps_model)
+print(s)
+
+plot(leaps_model, scale = "bic")
+
+plot(s$adjr2, xlab = "No. of variables", ylab = "Adjusted R Squared")
+points(which.max(s$adjr2), s$adjr2[which.max(s$adjr2)],pch = 19, col = 'red')
+
+# no real difference in adjusted R squared based on num of predictors
+
+plot(s$cp, xlab = "No. of variables", ylab = "AIC")
+points(which.min(s$cp), s$cp[which.min(s$cp)],pch = 19, col = 'red')
+
+# Using Mallow's Criterion, p = 10 predictor variables, same as original dataset
+
+plot(s$bic, xlab = "No. of variables", ylab = "BIC")
+points(which.min(s$bic), s$bic[which.min(s$bic)],pch = 19, col = 'red')
+
+# Using BIC, p = 7 predictor variables, same as stepwise regression
+
+final_leaps <- regsubsets(Macro_SP_QoQ_sol1$SP500 ~ ., 
+                                 data = Macro_SP_QoQ_sol1, nvmax = 7)
+plot(final_leaps, scale = "bic")
+# keep PPIACO, PAYEMS, GDP, CPIAUCSL, GDP1, DFF, GFDEBTN, ICSA
+# summary(final_leaps)
+# same model as stepwise regression
+```
+
+## Stepwise Linear Regression (sol2 data  set)
+
+```{r stepwise regression}
+#create null and full models
+m0 <- lm(SP500 ~ 1, data = Macro_SP_QoQ_sol2)
+m1 <- lm(SP500 ~ ., data = Macro_SP_QoQ_sol2)
+
+```
+
+```{r forward}
+forward <- step(m0, scope = list(lower = m0, upper = m1),
+                direction = "forward", k = log(NROW(Macro_SP_QoQ_sol2$SP500)), trace = 0)
+summary(forward)
+forward$anova
+extractAIC(forward)
+
+# keep UMSCENT and PERMIT
+```
+
+```{r backward}
+
+backward <- step(m1, scope = list(lower = m0, upper = m1),
+                direction = "backward", k = log(NROW(Macro_SP_QoQ_sol2$SP500)), trace = 0)
+summary(backward)
+backward$anova
+extractAIC(backward) 
+
+# keep W068RCQ027SBEA, PPIACO, ICSA, DSPIC96, INDPRO, DGS10, DFF, WTISPLC, BOGZ1FA895050005Q
+```
+
+```{r both}
+both <- step(m0, scope = list(lower = m0, upper = m1),
+                direction = "both", k = log(NROW(Macro_SP_QoQ_sol2$SP500)), trace = 0)
+summary(both)
+both$anova
+extractAIC(both) 
+# same model as forward
+```
+
+```{r exhaustive search using leaps}
+
+leaps_model <- regsubsets(Macro_SP_QoQ_sol2$SP500 ~ ., 
+                                 data = Macro_SP_QoQ_sol2, nvmax = 19)
+s <- summary(leaps_model)
+print(s)
+
+plot(leaps_model, scale = "bic")
+
+plot(s$adjr2, xlab = "No. of variables", ylab = "Adjusted R Squared")
+points(which.max(s$adjr2), s$adjr2[which.max(s$adjr2)],pch = 19, col = 'red')
+
+# no real difference in adjusted R squared based on num of predictors
+
+plot(s$cp, xlab = "No. of variables", ylab = "AIC")
+points(which.min(s$cp), s$cp[which.min(s$cp)],pch = 19, col = 'red')
+
+# Using Mallow's Criterion, p = 11 predictor variables, same as original dataset
+
+plot(s$bic, xlab = "No. of variables", ylab = "BIC")
+points(which.min(s$bic), s$bic[which.min(s$bic)],pch = 19, col = 'red')
+
+# Using BIC, p = 6 predictor variables, same as stepwise regression
+
+final_leaps <- regsubsets(Macro_SP_QoQ_sol2$SP500 ~ ., 
+                                 data = Macro_SP_QoQ_sol2, nvmax = 6)
+plot(final_leaps, scale = "bic")
+# summary(final_leaps)
+# same model as 6 var stepwise regression model
+```
+
+## Stepwise Linear Regression (sol3 data  set)
+
+```{r stepwise regression}
+#create null and full models
+m0 <- lm(SP500 ~ 1, data = Macro_SP_QoQ_sol3)
+m1 <- lm(SP500 ~ ., data = Macro_SP_QoQ_sol3)
+
+```
+
+```{r forward}
+forward <- step(m0, scope = list(lower = m0, upper = m1),
+                direction = "forward", k = log(NROW(Macro_SP_QoQ_sol3$SP500)), trace = 0)
+summary(forward)
+forward$anova
+extractAIC(forward) 
+# keep UMSCENT, PERMIT
+```
+
+```{r backward}
+
+backward <- step(m1, scope = list(lower = m0, upper = m1),
+                direction = "backward", k = log(NROW(Macro_SP_QoQ_sol3$SP500)), trace = 0)
+summary(backward)
+backward$anova
+extractAIC(backward) 
+
+# # keep PIACO, INDPRO, W068RCQ027SBEA, DSPIC96, DGS10, ICSA, DFF, WTISPLC, GFDEBTN
+
+```
+
+```{r both}
+both <- step(m0, scope = list(lower = m0, upper = m1),
+                direction = "both", k = log(NROW(Macro_SP_QoQ_sol3$SP500)), trace = 0)
+summary(both)
+both$anova
+extractAIC(both) 
+# same model as forward selection
+```
+
+```{r exhaustive search using leaps}
+
+leaps_model <- regsubsets(Macro_SP_QoQ_sol3$SP500 ~ ., 
+                                 data = Macro_SP_QoQ_sol3, nvmax = 19)
+s <- summary(leaps_model)
+print(s)
+
+plot(leaps_model, scale = "bic")
+
+plot(s$adjr2, xlab = "No. of variables", ylab = "Adjusted R Squared")
+points(which.max(s$adjr2), s$adjr2[which.max(s$adjr2)],pch = 19, col = 'red')
+
+# no real difference in adjusted R squared based on num of predictors
+
+plot(s$cp, xlab = "No. of variables", ylab = "AIC")
+points(which.min(s$cp), s$cp[which.min(s$cp)],pch = 19, col = 'red')
+
+# Using Mallow's Criterion, p = 12 predictor variables, same as original dataset
+
+plot(s$bic, xlab = "No. of variables", ylab = "BIC")
+points(which.min(s$bic), s$bic[which.min(s$bic)],pch = 19, col = 'red')
+
+# Using BIC, p = 5 predictor variables, same as stepwise regression
+
+final_leaps <- regsubsets(Macro_SP_QoQ_sol3$SP500 ~ ., 
+                                 data = Macro_SP_QoQ_sol3, nvmax = 5)
+plot(final_leaps, scale = "bic")
+# summary(final_leaps)
+# same model as stepwise regression
+```
+
+## Final Stepwise models
+
+```{r}
+#helper function
+
+test_resample = function(fit, data) {
+  set.seed(42)
+  index <- createDataPartition(data$SP500, p = 0.9, times = 1, list = FALSE)
+  train <- data[index,]
+  test <- data[-index,]
+  pred <- predict(fit, test)
+  postResample(pred, test$SP500)
+}
+
+```
+
+
+```{r}
+
+Macro_SP_QoQ_0m0 <- lm(SP500 ~ 1, data = Macro_SP_QoQ)
+Macro_SP_QoQ_0m1 <- lm(SP500 ~ ., data = Macro_SP_QoQ)
+
+sol0_model <- step(Macro_SP_QoQ_0m0, scope = list(lower = Macro_SP_QoQ_0m0, upper = Macro_SP_QoQ_0m1),
+                direction = "forward", k = log(NROW(Macro_SP_QoQ$SP500)), trace = 0)
+#summary(sol0_model)
+
+Macro_SP_QoQ_1m0 <- lm(SP500 ~ 1, data = Macro_SP_QoQ_sol1)
+Macro_SP_QoQ_1m1 <- lm(SP500 ~ ., data = Macro_SP_QoQ_sol1)
+
+sol1_model <- step(Macro_SP_QoQ_1m0 , scope = list(lower = Macro_SP_QoQ_1m0 , upper = Macro_SP_QoQ_1m1),
+                direction = "forward", k = log(NROW(Macro_SP_QoQ_sol1$SP500)), trace = 0)
+#summary(sol1_model)
+
+Macro_SP_QoQ_2m0 <- lm(SP500 ~ 1, data = Macro_SP_QoQ_sol2)
+Macro_SP_QoQ_2m1 <- lm(SP500 ~ ., data = Macro_SP_QoQ_sol2)
+
+sol2_model <- step(Macro_SP_QoQ_2m0, scope = list(lower = Macro_SP_QoQ_2m0, upper = Macro_SP_QoQ_2m1),
+                direction = "forward", k = log(NROW(Macro_SP_QoQ_sol2$SP500)), trace = 0)
+#summary(sol2_model)
+
+Macro_SP_QoQ_3m0 <- lm(SP500 ~ 1, data = Macro_SP_QoQ_sol3)
+Macro_SP_QoQ_3m1 <- lm(SP500 ~ ., data = Macro_SP_QoQ_sol3)
+
+sol3_model <- step(Macro_SP_QoQ_3m0, scope = list(lower = Macro_SP_QoQ_3m0, upper = Macro_SP_QoQ_3m1),
+                direction = "forward", k = log(NROW(Macro_SP_QoQ_sol3$SP500)), trace = 0)
+#summary(sol3_model)
+
+df <- data.frame("Model" = c("Stepwise Orig Data", "Stepwise Sol 1",
+                             "Stepwise Sol 2", "Stepwise Sol 3",
+                             "ElasticNet Orig Data", "ElasticNet Sol 1", 
+                             "ElasticNet Sol 2", "ElasticNet Sol 3"),
+                 "RMSE" = rep(0,8),
+                 "RSquared" = rep(0,8),
+                 "MAE" = rep(0,8))
+
+df[1,2:4] <- test_resample(sol0_model, Macro_SP_QoQ)
+df[2,2:4] <- test_resample(sol1_model, Macro_SP_QoQ_sol1)
+df[3,2:4] <- test_resample(sol2_model, Macro_SP_QoQ_sol2)
+df[4,2:4] <- test_resample(sol3_model, Macro_SP_QoQ_sol3)
+
+```
+
+## ElasticNet Linear Regression Models
+
+```{r}
+set.seed(42)
+
+cv_5 = trainControl(method = "cv", number = 5)
+
+get_best_result = function(caret_fit) {
+  best = which(rownames(caret_fit$results) == rownames(caret_fit$bestTune))
+  best_result = caret_fit$results[best, ]
+  rownames(best_result) = NULL
+  best_result
+}
+
+```
+
+```{r sol0 ElasticNet}
+
+set.seed(42)
+
+sol0_elnet = train(
+  SP500 ~ ., data = Macro_SP_QoQ,
+  method = "glmnet", preProc = c("center", "scale"),
+  trControl = cv_5, tuneLength = 10)
+
+print(sol0_elnet)
+
+get_best_result(sol0_elnet)
+
+```
+
+```{r sol0 variable selection}
+
+
+X_sol0 = model.matrix(SP500 ~ ., data = Macro_SP_QoQ)[,-1]
+Y_sol0 = Macro_SP_QoQ$SP500
+
+set.seed(42)
+
+fit_lasso_cv_sol0 <- cv.glmnet(X_sol0, Y_sol0, 
+                               alpha = get_best_result(sol0_elnet)[1,1], 
+                               family = "gaussian", standardize = TRUE)
+#fit_lasso_cv_sol0
+coef(fit_lasso_cv_sol0) # 6 variables kept
+# keep PPIACO, PAYEMS, CPIAUCSL, PCE, ICSA
+sum(coef(fit_lasso_cv_sol0) != 0) # num of predictors that are not 0
+sum(coef(fit_lasso_cv_sol0) == 0) # num of variables where coef = 0
+```
+
+```{r sol1 ElasticNet}
+
+set.seed(42)
+
+sol1_elnet = train(
+  SP500 ~ ., data = Macro_SP_QoQ_sol1,
+  method = "glmnet", preProc = c("center", "scale"),
+  trControl = cv_5, tuneLength = 10)
+
+print(sol1_elnet)
+
+get_best_result(sol1_elnet)
+
+```
+
+```{r sol1 variable selection}
+
+
+X_sol1 = model.matrix(SP500 ~ ., data = Macro_SP_QoQ_sol1)[,-1]
+Y_sol1 = Macro_SP_QoQ_sol1$SP500
+
+set.seed(42)
+
+fit_lasso_cv_sol1 <- cv.glmnet(X_sol1, Y_sol1, 
+                               alpha = get_best_result(sol1_elnet)[1,1], 
+                               family = "gaussian", standardize = TRUE)
+#fit_lasso_cv_sol1
+coef(fit_lasso_cv_sol1)
+# keep PPIACO, CPIAUCSL, PCE, ICSA
+sum(coef(fit_lasso_cv_sol1) != 0) # num of predictors that are not 0
+sum(coef(fit_lasso_cv_sol1) == 0) # num of variables where coef = 0
+```
+
+```{r sol2 ElasticNet}
+
+set.seed(42)
+
+sol2_elnet = train(
+  SP500 ~ ., data = Macro_SP_QoQ_sol2,
+  method = "glmnet", preProc = c("center", "scale"),
+  trControl = cv_5, tuneLength = 10)
+
+print(sol2_elnet)
+
+get_best_result(sol2_elnet)
+
+```
+
+```{r sol2 variable selection}
+
+
+X_sol2 = model.matrix(SP500 ~ ., data = Macro_SP_QoQ_sol2)[,-1]
+Y_sol2 = Macro_SP_QoQ_sol2$SP500
+
+set.seed(42)
+
+fit_lasso_cv <- cv.glmnet(X_sol2, Y_sol2, 
+                          alpha = get_best_result(sol2_elnet)[1,1], 
+                          family = "gaussian", standardize = TRUE)
+#fit_lasso_cv
+coef(fit_lasso_cv)
+# keep PPIACO, PAYEMS, CPIAUCSL, PCE, ICSA
+sum(coef(fit_lasso_cv) != 0) # num of predictors that are not 0
+sum(coef(fit_lasso_cv) == 0) # num of variables where coef = 0
+```
+
+
+```{r sol3 ElasticNet}
+
+set.seed(42)
+
+sol3_elnet = train(
+  SP500 ~ ., data = Macro_SP_QoQ_sol3,
+  method = "glmnet", preProc = c("center", "scale"),
+  trControl = cv_5, tuneLength = 10)
+
+print(sol3_elnet)
+
+get_best_result(sol3_elnet)
+
+```
+
+```{r sol3 variable selection}
+
+
+X_sol3 = model.matrix(SP500 ~ ., data = Macro_SP_QoQ_sol3)[,-1]
+Y_sol3 = Macro_SP_QoQ_sol3$SP500
+
+set.seed(42)
+
+fit_lasso_cv <- cv.glmnet(X_sol3, Y_sol3, 
+                          alpha = get_best_result(sol3_elnet)[1,1], 
+                          family = "gaussian", standardize = TRUE)
+#fit_lasso_cv
+coef(fit_lasso_cv) # 6 variables kept
+# keep PPIACO, WTISPLC, UNRATE, PCE, ICSA
+sum(coef(fit_lasso_cv) != 0) # num of predictors that are not 0
+sum(coef(fit_lasso_cv) == 0) # num of variables where coef = 0
+```
+
+```{r test elasticnet models}
+#sol 0 EL
+df[5,2:4] <- test_resample(sol0_elnet, Macro_SP_QoQ)
+
+#sol 1 EL
+df[6,2:4] <- test_resample(sol1_elnet, Macro_SP_QoQ_sol1)
+
+#sol 2 EL
+df[7,2:4] <- test_resample(sol2_elnet, Macro_SP_QoQ_sol2)
+
+#sol 3 EL
+df[8,2:4] <- test_resample(sol3_elnet, Macro_SP_QoQ_sol3)
+
+print(df)
+```
