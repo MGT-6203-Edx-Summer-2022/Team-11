@@ -1,3 +1,9 @@
+---
+title: "QoQ Analysis"
+output: html_document
+---
+
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -83,7 +89,7 @@ Macro_SP_QoQ_sol3 <- Macro_SP_QoQ[,-which(colnames(Macro_SP_QoQ) %in% sol3_remov
 
 ## Stepwise Linear Regression (original dataset)
 
-```{r stepwise regression}
+```{r stepwise regression orig}
 #create null and full models
 m0 <- lm(SP500 ~ 1, data = Macro_SP_QoQ)
 m1 <- lm(SP500 ~ ., data = Macro_SP_QoQ)
@@ -101,7 +107,7 @@ extractAIC(forward)
 
 ```
 
-```{r backward}
+```{r backward orig}
 
 backward <- step(m1, scope = list(lower = m0, upper = m1),
                 direction = "backward", k = log(NROW(Macro_SP_QoQ$SP500)), trace = 0)
@@ -113,7 +119,7 @@ extractAIC(backward)
 
 ```
 
-```{r both}
+```{r both orig}
 both <- step(m0, scope = list(lower = m0, upper = m1),
                 direction = "both", k = log(NROW(Macro_SP_QoQ$SP500)), trace = 0)
 summary(both)
@@ -123,7 +129,7 @@ extractAIC(both)
 
 ```
 
-```{r exhaustive search using leaps}
+```{r exhaustive search using leaps orig}
 
 leaps_model <- regsubsets(Macro_SP_QoQ$SP500 ~ ., 
                                  data = Macro_SP_QoQ, nvmax = 19)
@@ -152,7 +158,7 @@ plot(final_leaps, scale = "bic")
 
 ## Stepwise Linear Regression (sol1 data  set)
 
-```{r stepwise regression}
+```{r stepwise regression sol1}
 #create null and full models
 m0 <- lm(SP500 ~ 1, data = Macro_SP_QoQ_sol1)
 m1 <- lm(SP500 ~ ., data = Macro_SP_QoQ_sol1)
@@ -169,7 +175,7 @@ extractAIC(forward)
 # keep UMSCENT, PERMIT
 ```
 
-```{r backward}
+```{r backward sol1}
 
 backward <- step(m1, scope = list(lower = m0, upper = m1),
                 direction = "backward", k = log(NROW(Macro_SP_QoQ_sol1$SP500)), trace = 0)
@@ -179,7 +185,7 @@ extractAIC(backward)
 # keep CPIAUCSL, UMSCENT, CPILFESL, PERMIT
 ```
 
-```{r both}
+```{r both sol1}
 both <- step(m0, scope = list(lower = m0, upper = m1),
                 direction = "both", k = log(NROW(Macro_SP_QoQ_sol1$SP500)), trace = 0)
 summary(both)
@@ -188,7 +194,7 @@ extractAIC(both)
 # same model as forward selection
 ```
 
-```{r exhaustive search using leaps}
+```{r exhaustive search using leaps sol1}
 
 leaps_model <- regsubsets(Macro_SP_QoQ_sol1$SP500 ~ ., 
                                  data = Macro_SP_QoQ_sol1, nvmax = 19)
@@ -222,7 +228,7 @@ plot(final_leaps, scale = "bic")
 
 ## Stepwise Linear Regression (sol2 data  set)
 
-```{r stepwise regression}
+```{r stepwise regression sol2}
 #create null and full models
 m0 <- lm(SP500 ~ 1, data = Macro_SP_QoQ_sol2)
 m1 <- lm(SP500 ~ ., data = Macro_SP_QoQ_sol2)
@@ -239,7 +245,7 @@ extractAIC(forward)
 # keep UMSCENT and PERMIT
 ```
 
-```{r backward}
+```{r backward sol2}
 
 backward <- step(m1, scope = list(lower = m0, upper = m1),
                 direction = "backward", k = log(NROW(Macro_SP_QoQ_sol2$SP500)), trace = 0)
@@ -250,7 +256,7 @@ extractAIC(backward)
 # keep W068RCQ027SBEA, PPIACO, ICSA, DSPIC96, INDPRO, DGS10, DFF, WTISPLC, BOGZ1FA895050005Q
 ```
 
-```{r both}
+```{r both sol2}
 both <- step(m0, scope = list(lower = m0, upper = m1),
                 direction = "both", k = log(NROW(Macro_SP_QoQ_sol2$SP500)), trace = 0)
 summary(both)
@@ -259,7 +265,7 @@ extractAIC(both)
 # same model as forward
 ```
 
-```{r exhaustive search using leaps}
+```{r exhaustive search using leaps sol2}
 
 leaps_model <- regsubsets(Macro_SP_QoQ_sol2$SP500 ~ ., 
                                  data = Macro_SP_QoQ_sol2, nvmax = 19)
@@ -292,7 +298,7 @@ plot(final_leaps, scale = "bic")
 
 ## Stepwise Linear Regression (sol3 data  set)
 
-```{r stepwise regression}
+```{r stepwise regression sol3}
 #create null and full models
 m0 <- lm(SP500 ~ 1, data = Macro_SP_QoQ_sol3)
 m1 <- lm(SP500 ~ ., data = Macro_SP_QoQ_sol3)
@@ -308,7 +314,7 @@ extractAIC(forward)
 # keep UMSCENT, PERMIT
 ```
 
-```{r backward}
+```{r backward sol3}
 
 backward <- step(m1, scope = list(lower = m0, upper = m1),
                 direction = "backward", k = log(NROW(Macro_SP_QoQ_sol3$SP500)), trace = 0)
@@ -320,7 +326,7 @@ extractAIC(backward)
 
 ```
 
-```{r both}
+```{r both sol3}
 both <- step(m0, scope = list(lower = m0, upper = m1),
                 direction = "both", k = log(NROW(Macro_SP_QoQ_sol3$SP500)), trace = 0)
 summary(both)
@@ -329,7 +335,7 @@ extractAIC(both)
 # same model as forward selection
 ```
 
-```{r exhaustive search using leaps}
+```{r exhaustive search using leaps sol3}
 
 leaps_model <- regsubsets(Macro_SP_QoQ_sol3$SP500 ~ ., 
                                  data = Macro_SP_QoQ_sol3, nvmax = 19)
@@ -588,14 +594,14 @@ print(df)
 ```
 
 
-## PCA
+# PCA
 
 ```{r PCA}
 
 SP500 <- Macro_SP_QoQ[22]
 
 # PCA object
-pca <- prcomp(Macro_SP_QoQ[,2:21], scale. = TRUE)
+pca <- prcomp(Macro_SP_QoQ[,1:21], scale. = TRUE)
 summary(pca)
 
 # Calculate the variances and proportion of variances from the pca object
@@ -629,12 +635,12 @@ ggarrange(p1, p2, ncol = 2, nrow = 1)
 ```{r Testing different nro of components}
 
 # Creating empty vectors to store Rsquared values with and without CV
-Rsq <- vector(mode="numeric", length=20)    # Empty vector for Rsq
-Rsq_cv <- vector(mode="numeric", length=20) # Empty vector for Rsq with CV
+Rsq <- vector(mode="numeric", length=21)    # Empty vector for Rsq
+Rsq_cv <- vector(mode="numeric", length=21) # Empty vector for Rsq with CV
 
 
 # Iterating over all the components
-for (k in 1:20) {
+for (k in 1:21) {
   # Fitting model
   pcs_   <- as.data.frame(pca$x[, 1:k])
   data_  <- cbind(SP500, pcs_)
@@ -647,7 +653,7 @@ for (k in 1:20) {
   Rsq[k] <- (1-SSres_model/SStot)
   
   # Model with 10-fold cross-validation
-  train.control <- trainControl(method = "cv", number = 10)
+  train.control <- trainControl(method = "repeatedcv", number = 10, repeats=5)
   model_cv <- train(SP500~., data = data_, 
                     method = "lm", trControl = train.control)
   # Calculating R-squared 
@@ -692,7 +698,7 @@ summary(pca_model)
 
 #-------------------------------------------------------------------------------
 # With 10 fold cross-validation
-train.control <- trainControl(method = "cv", number = 10)
+train.control <- trainControl(method = "repeatedcv", number = 10, repeats=5)
 
 pca_model_cv <- train(SP500 ~., data = df, 
                    method = "lm", trControl = train.control)
