@@ -23,6 +23,8 @@ library(tidyr)
 library(ggplot2)
 library(ggpubr)
 
+set.seed(1)
+
 #-------------------------------------------------------------------------------
 # Load Quarterly Data
 #-------------------------------------------------------------------------------
@@ -78,7 +80,7 @@ p1 <- ggplot(data=df_plot, mapping=aes(x = as.numeric(row.names(df_plot)), y=pro
 
 p2 <- ggplot(data=df_plot, mapping=aes(x = as.numeric(row.names(df_plot)), y=cum))+
           geom_line(color='darkblue', size=0.8) + 
-          ggtitle('Cumulative Proportion of Variance Explained') +
+          ggtitle('Cum. Prop. of Variance Explained') +
           ylab('Cumulative Proportion of Variance Explained') + xlab('Principal Component') +
           ylim(0,1)
 
@@ -110,7 +112,7 @@ for (k in 1:21) {
   Rsq[k] <- (1-SSres_model/SStot)
   
   # Model with 10-fold cross-validation
-  train.control <- trainControl(method = "repeatedcv", number = 10, repeats=5)
+  train.control <- trainControl(method = "repeatedcv", number = 5, repeats=5)
   model_cv <- train(SP500~., data = data_, 
                     method = "lm", trControl = train.control)
   # Calculating R-squared 
@@ -120,9 +122,14 @@ for (k in 1:21) {
 # Creating a dataframe or Rsquared with and without cross-validation
 df_rsq <- data.frame(Rsq, Rsq_cv)
 df_rsq
+
+# Highest Rsq_cv value
+which.max(df_rsq$Rsq_cv)
 ```
 
-We achieve higher r-squared values after having 7 PCAs.
+which.max(df_rsq$Rsq_cv)
+
+We achieve higher r-squared value at 11 components (0.23), but in general results are good after 7 principal components.
 
 ```{r PCA Plots}
 
@@ -147,21 +154,22 @@ ggarrange(p3, p4, ncol = 2, nrow = 1)
 
 # Regression With first 7 PCAs
 
+
 ```{r First 7 PCAs}
 
 #Create new data matrix with first 7 PCs and SP500 QoQ change
-df <- cbind(SP500, pca$x[,1:7]) 
+df_7pcs <- cbind(SP500, pca$x[,1:7]) 
 
 # Create regression model
-pca_model <- lm(SP500 ~., data = df)
+pca_model <- lm(SP500 ~., data = df_7pcs)
 summary(pca_model)
 
 
 #-------------------------------------------------------------------------------
 # With 10 fold cross-validation
-train.control <- trainControl(method = "repeatedcv", number = 10, repeats=5)
+train.control <- trainControl(method = "repeatedcv", number = 5, repeats=5)
 
-pca_model_cv <- train(SP500 ~., data = df, 
+pca_model_cv <- train(SP500 ~., data = df_7pcs, 
                    method = "lm",trControl = train.control)
 
 # Summary of the model
@@ -169,6 +177,143 @@ print(pca_model_cv)
 
 ```
 
+
+Tranforming PCA coefficients for original variables.
+
+```{r Coefficients of Original Variables}
+
+# Transform the PCA coefficients into coefficients for the original variables
+beta0 <- pca_model$coefficients[1]
+betas <- pca_model$coefficients[2:8]
+alphas <- pca$rotation[,1:7] %*% betas
+
+### Unscaling data
+originalAlpha <- alphas/sapply(Macro_SP_QoQ[,1:21],sd)
+originalBeta0 <- beta0 - sum(alphas*sapply(Macro_SP_QoQ[,1:21],mean)/sapply(Macro_SP_QoQ[,1:21],sd))
+
+originalAlpha
+
+```
+
+
+# Lasso Regression
+
+
+```{r Lasso}
+
+#Create new data matrix with PCAs and SP500 QoQ change
+df <- cbind(pca$x, SP500) 
+
+# Converting data frame to matrix, as this format is required in gmlnet
+x <- as.matrix(df[,1:21])
+y <- as.vector(df[,22])
+
+# Lasso regression
+model <- cv.glmnet(x, y, scale=TRUE, alpha = 1, nfolds = 5, type.measure="mse", family="gaussian") # Lasso when alpha=1
+
+# Find optimal lambda values that minimizes MSE
+best_lambda <- model$lambda.min
+
+# Find coefficients of best model
+best_model <- glmnet(x, y, alpha=1, lambda=best_lambda)
+coef(best_model)
+
+```
+```{r Lasso Regression with Best Components}
+
+# Create regression model
+lasso_pca <- lm(SP500 ~ PC1+PC2+PC3+PC5+PC6, data = df)
+summary(lasso_pca)
+
+
+#-------------------------------------------------------------------------------
+# With 10 fold cross-validation
+train.control <- trainControl(method = "repeatedcv", number = 5, repeats=5)
+
+lasso_pca_cv <- train(SP500 ~ PC1+PC2+PC3+PC5+PC6, data = df, 
+                   method = "lm",trControl = train.control)
+
+# Summary of the model
+print(lasso_pca_cv)
+
+```
+
+# Elastic Net
+
+```{r Elastic Best Alpha}
+#We vary alpha in steps of 0.1 from 0 to 1 and calculate the resultant R-Squared values
+R2=c()
+for (i in 0:10) {
+  mod_elastic = cv.glmnet(x=x, y=y, alpha=i/10, nfolds = 5, type.measure="mse", family="gaussian")
+
+#The deviance(dev.ratio ) shows the percentage of deviance explained, 
+#(equivalent to r squared in case of regression)
+  R2 = cbind(R2,mod_elastic$glmnet.fit$dev.ratio[which(mod_elastic$glmnet.fit$lambda == mod_elastic$lambda.min)])
+
+}
+
+alpha_best = (which.max(R2)-1)/10
+alpha_best  
+
+```
+
+#Lets build the model using this alpha value.
+```{r Elastic Net Coef}
+Elastic_net=cv.glmnet(x=x, y=y, alpha=alpha_best, nfolds = 5, type.measure="mse", family="gaussian")
+
+
+coef(Elastic_net, s=Elastic_net$lambda.min)
+```
+
+
+```{r Elastic Net Regression with Best Components}
+
+# Create regression model
+elastic_pca <- lm(SP500 ~ PC1+PC2+PC3+PC5+PC6+PC8+PC9+PC10+PC11+PC12+PC15+PC19+PC21, data = df)
+summary(elastic_pca)
+
+
+#-------------------------------------------------------------------------------
+# With 10 fold cross-validation
+train.control <- trainControl(method = "repeatedcv", number = 5, repeats=5)
+
+elastic_pca_cv <- train(SP500 ~ PC1+PC2+PC3+PC5+PC6+PC8+PC9+PC10+PC11+PC12+PC15+PC19+PC21, data = df, 
+                   method = "lm",trControl = train.control)
+
+# Summary of the model
+print(elastic_pca_cv)
+
+```
+
+```{r Stepwise}
+#Create new data matrix with PCAs and SP500 QoQ change
+
+ctrl <- trainControl(method='repeatedcv', number = 5, repeats = 5)
+set.seed(1)
+
+stepwise <- train(SP500~., data = df, "lmStepAIC", scope = 
+                      list(lower = SP500~1, upper = SP500~.), direction = "backward",trControl=ctrl)
+
+```
+
+```{r Lasso Regression with Best Components}
+
+# Stepwise regression model
+stepwise_pca <- lm(SP500 ~ PC1+PC2+PC3+PC5+PC6+PC8+PC9+PC10+PC12+PC15+PC19, data = df)
+summary(stepwise_pca)
+
+
+#-------------------------------------------------------------------------------
+# With 10 fold cross-validation
+train.control <- trainControl(method = "repeatedcv", number = 5, repeats=5)
+
+stepwise_pca_cv <- train(SP500 ~ PC1+PC2+PC3+PC5+PC6+PC8+PC9+PC10+PC12+PC15+PC19, data = df, 
+                   method = "lm",trControl = train.control)
+
+# Summary of the model
+print(stepwise_pca_cv)
+
+```
 
 ## Testing the impact of lead-lag 
 Testing if we achieve a better r-squared by leading and lagging SP500 QoQ by 1-2 quarters. Keeping 7 PCAs selected.
@@ -200,63 +345,3 @@ mean(model_lag2$resample$Rsquared)
 ```
 
 We achieve the best results with the regular quarterly data.
-
-Tranforming PCA coefficients for original variables.
-
-```{r Coefficients of Original Variables}
-
-# Transform the PCA coefficients into coefficients for the original variables
-beta0 <- pca_model$coefficients[1]
-betas <- pca_model$coefficients[2:8]
-alphas <- pca$rotation[,1:7] %*% betas
-
-### Unscaling data
-originalAlpha <- alphas/sapply(Macro_SP_QoQ[,1:21],sd)
-originalBeta0 <- beta0 - sum(alphas*sapply(Macro_SP_QoQ[,1:21],mean)/sapply(Macro_SP_QoQ[,1:21],sd))
-
-originalAlpha
-
-```
-
-# Lasso Regression
-
-```{r Lasso}
-
-#Create new data matrix with PCAs and SP500 QoQ change
-df <- cbind(pca$x, SP500) 
-
-# Converting data frame to matrix, as this format is required in gmlnet
-x <- as.matrix(df[,1:21])
-y <- as.vector(df[,22])
-
-# Lasso regression
-model <- cv.glmnet(x, y, scale=TRUE, alpha = 1) # Lasso when alpha=1
-
-# Find optimal lambda values that minimizes MSE
-best_lambda <- model$lambda.min
-
-# Find coefficients of best model
-best_model <- glmnet(x, y, alpha=1, lambda=best_lambda)
-coef(best_model)
-
-```
-```{r Regression with best components}
-
-# Create regression model
-lasso_pca <- lm(SP500 ~ PC1+PC2+PC3+PC5+PC6+PC8+PC9+PC10+PC12+PC15+PC19+PC21, data = df)
-summary(lasso_pca)
-
-
-#-------------------------------------------------------------------------------
-# With 10 fold cross-validation
-train.control <- trainControl(method = "repeatedcv", number = 10, repeats=5)
-
-lasso_pca_cv <- train(SP500 ~., data = df, 
-                   method = "lm",trControl = train.control)
-
-# Summary of the model
-print(lasso_pca_cv)
-
-```
-
-
