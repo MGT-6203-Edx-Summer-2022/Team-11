@@ -1,7 +1,6 @@
 ---
-title: "EDA: The Effect of Macroeconomic Indicators on Stock Market Performance"
-author: "Liangqu Chen"
-date: "7/1/2022"
+title: "Exploratory Data Analysis: The Effect of Macroeconomic Indicators on Stock Market Performance"
+author: "Liangqu Chen, Jari Oinas"
 output: html_document
 ---
 
@@ -25,27 +24,38 @@ library(DataExplorer)
 library(corrr)
 library(ggplot2)
 library(dplyr)
+library(lmtest)
+library(cowplot)
 ```
 
 
 ```{r}
 # import data set
-Macro_SP_MoM <- read.csv('Macro_SP_MoM.csv')
-Macro_SP_QoQ <- read.csv('Macro_SP_QoQ.csv')
+Macro_SP_MoM <- read.csv('~/Documents/GitHub/Team-11/Deliverables/Phase 2/Data Source/Macro_SP_MoM.csv')
+Macro_SP_QoQ <- read.csv('~/Documents/GitHub/Team-11/Deliverables/Phase 2/Data Source/Macro_SP_QoQ.csv')
 
 #rename the date
 Macro_SP_MoM <- subset(Macro_SP_MoM,select=-c(date))
 Macro_SP_QoQ <- subset(Macro_SP_QoQ,select=-c(date))
 ```
 
+------------------------------------------------
+Data overview
+------------------------------------------------
+
 ```{r}
 summary(Macro_SP_MoM)
-summary(Macro_SP_QoQ)
 ```
 
 It is interesting to see that S&P500 max return was 12.0 % and min return is -20.3%, while the mean return is 0.66%
 
-Let's look at SP500's histgram
+```{r}
+summary(Macro_SP_QoQ)
+```
+
+Long term investors are taking advantage of the effect of compound interest as average return of SP500 quarterly shows about 2%.
+
+Let's look at SP500's histogram
 
 ```{r SP500, echo=FALSE}
 hist(Macro_SP_MoM$SP500, xlab='S&P monthly returns', 
@@ -57,6 +67,7 @@ There are some outstanding points on the left of chart with about -20% returns.
 ```{r}
 # shapiro wilk test to test its normalty
 shapiro.test(Macro_SP_MoM$SP500)
+shapiro.test(Macro_SP_QoQ$SP500)
 ```
 Shapiro-Wilk test with the very low p-value rejects the null hypothesis that the data is normally distributed
 But the normality test is prone to focus too much on the outliers.
@@ -64,26 +75,31 @@ But the normality test is prone to focus too much on the outliers.
 ```{r}
 # QQ plot
 qqnorm(Macro_SP_MoM$SP500)
+qqnorm(Macro_SP_QoQ$SP500)
 ```
 qqplot is showing the a fat-tailed distribution of SP500. Expecially we can find two outstanding points on the bottom left corner.
 
+------------------------------------------------
+Outlier Detection
+------------------------------------------------
 
 ```{r}
 
 boxplot(Macro_SP_MoM$SP500, las=1, horizontal = TRUE, main='SP500 boxplot')
-
+boxplot(Macro_SP_QoQ$SP500, las=1, horizontal = TRUE, main='SP500 boxplot')
 ```
-
-
+From the box plot, we can find some potential outliers with negative returns
+Thus, we use grubbs.test to see if there is any outliers
 
 ```{r}
+
 grubbs.test(Macro_SP_MoM$SP500,type=10)
 grubbs.test(Macro_SP_MoM$SP500,type=10, opposite=TRUE)
 ```
 
+For MoM dataset:
 p-value for the lowest is extremely small thus we can reject the null hypothesis
 and accept the alternative hypothesis that lowest value is an outlier
-
 p-value for the highest value seems not significant enough thus not rejecting the null hypothesis
 
 ```{r}
@@ -126,31 +142,62 @@ grubbs.test(SP500_adj, type=10)
 ```
 
 now we can not really reject the null hypothesis
-
 So potential outliers are points: 501, 637, 250, 249
 
-do the shapiro wilk and draw QQ plot again
 ```{r}
-# remove outliers
-SP_outliers <- c(501, 637, 250,249)
-SP500_adj < Macro_SP_MoM$SP500[-SP_outliers]
-
-# QQ plot
-qqnorm(SP500_adj)
+grubbs.test(Macro_SP_QoQ$SP500,type=10)
+grubbs.test(Macro_SP_QoQ$SP500,type=10, opposite=TRUE)
 ```
 
-Check collinearity between independent variables
+For QoQ dataset:
+p-value for the lowest is extremely small thus we can reject the null hypothesis
+and accept the alternative hypothesis that lowest value is an outlier
+p-value for the highest value seems not significant enough thus not rejecting the null hypothesis
 
+```{r}
+# show the number of the lowest value
+which.min(Macro_SP_QoQ$SP500)
+# remove the lowest values and test again
+SP500_adj<- Macro_SP_QoQ$SP500[-which.min(Macro_SP_QoQ$SP500)]
+# SP500_adj<- SP500_adj[-which.min(SP500_adj)]
+grubbs.test(SP500_adj, type=10)
+```
+the 2nd lowest point is potentially an outlier.
+
+```{r}
+# show the number of the lowest value
+which.min(SP500_adj)
+# remove the lowest values and test again
+SP500_adj<- SP500_adj[-which.min(SP500_adj)]
+# SP500_adj<- SP500_adj[-which.min(SP500_adj)]
+grubbs.test(SP500_adj, type=10)
+```
+
+3rd lower return doesn't seem to be an outlier
+So QoQ dataset, the potential outliers are 167 and 83
+
+We discover data points that could be classified as outliers with a confidence interval of 95% in both datasets. 
+They all are showing extreme negative returns. 
+However, we choose not to remove the outliers as they reflect real, historical return data rather than erroneous data.
+And we intend to build a model to reflect the extreme market conditions.
+
+
+------------------------------------------------
+Collinearity between independent variables
+------------------------------------------------
 
 ```{r}
 # plot the corrplot
 
 corrplot(cor(Macro_SP_MoM[names(Macro_SP_MoM)!='SP500']), order='AOE')
+corrplot(cor(Macro_SP_QoQ[names(Macro_SP_QoQ)!='SP500']), order='AOE')
 
 ```
-It shows UNRATE has strong negative correlation with DFF, PCE, PAYEMS, INDPRO, GDPC1. There is another outstanding negative correlation relationship such as W068RCQ027SBEA with PAYEMS and INDPRO.  
+In general, the quarterly data shows a stronger correlation between independent variables than monthly dataset.
 
+It shows UNRATE has strong negative correlation with DFF, PCE, PAYEMS, INDPRO, GDPC1. There is another outstanding negative correlation relationship such as W068RCQ027SBEA with PAYEMS and INDPRO.
 Pairs of strong positive correlation as shown in the chart are UNRATE with W068RCQ027SBEA, CPIAUCSL with CPILFESL, PPIACO with CPIAUCSL, BOGZ1FA895050005Q with GDP and GDPC1. 
+
 
 ```{r,echo=FALSE}
 # check VIF for each independent variables
@@ -162,12 +209,21 @@ summary(model)
 barplot(vif(model), main='VIF values', col='lightblue', las =2)
 abline(h=5, lwd=3,lty=2)
 
+model <- lm(SP500~., Macro_SP_QoQ)
+summary(model)
+
+# plot vif and find vif value higher than 5
+barplot(vif(model), main='VIF values', col='lightblue', las =2)
+abline(h=5, lwd=3,lty=2)
+
 ```
+As shown in the VIF charts, we discovered that there was a high likelihood of problematic multicollinearity in both data sets.
+In the month over month (MoM) data set, there were 5 predictors with a VIF greater than 5.
+In the quarter over quarter data (QoQ) set, a total of 9 predictors had a VIF greater than 5.
 
-Take a look at the linear relationship between predicators and response
 
+For example, for month on month data, combined with the correlation plot, we can see the problematic pairs are: 
 
-Combined with the correlation plot, we can see the problematic pairs are: 
 UNRATE*  with W068RCQ027SBEA (Government spending)
 UNRATE*  with GDP* 
 UNRATE*  with GDPC1 (real GDP)* 
@@ -180,135 +236,156 @@ GDPC1*    with BOGZ1FA895050005Q (Capital Expenditure)*
 PAYEMS*  with W068RCQ027SBEA (Government spending)
 PAYEMS*  with GDPC1 (real GDP)* 
 PAYEMS*  with INDPRO (Industrial output)
-PAYEMS*  with PCE (Personal Consumption Expenditures)
+PAYEMS*  with PCE (Personal Consumption Expenditures)           *: VIF > 5
 
 
-*: VIF > 5
-
-```{r}
-# pairplot for the correlated variables
-corr_variables = c('UNRATE', 'GDP', 'GDPC1','PAYEMS','W068RCQ027SBEA', 'INDPRO', 'BOGZ1FA895050005Q', 'PCE')
-PairPlot(Macro_SP_MoM, corr_variables, 'Pair plot', point_color = 'red')
-
-```
-
-Solution for collinearity
-
-Solution one
-  keep GDPC1 (real GDP)
-  Drop UNRATE (Unemployment rate)
-  Drop GDP
-  Drop PAYEMS (Non farm payroll)
-  Drop BOGZ1FA895050005Q
-
-Solution two
-  Keep PAYEMS
-  Drop GDP, GDPC1, UNRATE, 
-  PAYEMS are predicting indexes, not delayed indexed like GDP, GDPC1, UNRATE
-
-Solution three
-  Keep UNRATE
-  Drop PAYEMS, GDP, GDPC1, UNRATE
-  Not considering combining two predictors because it is contradictory to the purpose of the project–quantified analysis on the       effect of single predictors
-
-Solution one
+------------------------------------------------
+linearity, heteroscedasticity and leverage points
+------------------------------------------------
 
 ```{r,echo=FALSE}
 # check VIF for each independent variables
-sol1_removed <- c('UNRATE', 'GDP', 'PAYEMS', 'BOGZ1FA895050005Q')
-Macro_SP_MoM_sol1 <- Macro_SP_MoM[,-which(colnames(Macro_SP_MoM) %in% sol1_removed)]
-Macro_SP_MoM_sol1.lm <- lm(SP500~., Macro_SP_MoM_sol1)
-summary(Macro_SP_MoM_sol1.lm)
+Macro_SP_MoM.lm <- lm(SP500~., Macro_SP_MoM)
+Macro_SP_QoQ.lm <- lm(SP500~., Macro_SP_QoQ)
 
-# plot vif and find vif value higher than 5
-barplot(vif(Macro_SP_MoM_sol1.lm), main='VIF values', col='lightblue', las =2)
-abline(h=5, lwd=3,lty=2)
+plot(Macro_SP_MoM.lm)
+plot(Macro_SP_QoQ.lm)
+
 
 ```
+The full models of both MoM and QoQ shows a linearity relationship.
+Variance of error from models trained by MoM and QoQ datasets seems roughly constant.
+No outstanding high leverage points for MoM but there seems one high leverage points in QoQ as its cook's distance is higher than 1
+
+------------------------------------------------
+Autocorrelation of error terms
+------------------------------------------------
+As we are using time series dataset, we suspect there might be autocorrelation in the error terms, which is not favored for a linear regression model
+
 ```{r}
-corrplot(cor(Macro_SP_MoM_sol1[names(Macro_SP_MoM_sol1)!='SP500']), order = 'AOE')
+dwtest(SP500~., order.by = NULL, alternative = c("greater", "two.sided", "less"),
+iterations = 15, exact = NULL, tol = 1e-10, data = Macro_SP_MoM)
+
+dwtest(SP500~., order.by = NULL, alternative = c("greater", "two.sided", "less"),
+iterations = 15, exact = NULL, tol = 1e-10, data = Macro_SP_QoQ)
 
 ```
 
-
-Solution two
-  Keep PAYEMS
-  Drop GDP, GDPC1, UNRATE, 
-  PAYEMS are predicting indexes, not delayed indexed like GDP, GDPC1, UNRATE
-
-```{r,echo=FALSE}
-# check VIF for each independent variables
-sol2_removed <- c('UNRATE', 'GDP', 'GDPC1')
-Macro_SP_MoM_sol2 <- Macro_SP_MoM[,-which(colnames(Macro_SP_MoM) %in% sol2_removed)]
-Macro_SP_MoM_sol2.lm <- lm(SP500~., Macro_SP_MoM_sol2)
-summary(Macro_SP_MoM_sol2.lm)
-
-# plot vif and find vif value higher than 5
-barplot(vif(Macro_SP_MoM_sol2.lm), main='VIF values', col='lightblue', las =2)
-abline(h=5, lwd=3,lty=2)
-
-```
-```{r}
-corrplot(cor(Macro_SP_MoM_sol2[names(Macro_SP_MoM_sol2)!='SP500']), order='AOE')
-```
-
-Solution three
-  Keep UNRATE
-  Drop PAYEMS, GDP, GDPC1, UNRATE
-  Not considering combining two predictors because it is contradictory to the purpose of the project–quantified analysis on the       effect of single predictors
-  
-```{r,echo=FALSE}
-# check VIF for each independent variables
-sol3_removed <- c('PAYEMS', 'GDP', 'GDPC1')
-Macro_SP_MoM_sol3 <- Macro_SP_MoM[,-which(colnames(Macro_SP_MoM) %in% sol3_removed)]
-Macro_SP_MoM_sol3.lm <- lm(SP500~., Macro_SP_MoM_sol3)
-summary(Macro_SP_MoM_sol3.lm)
-
-# plot vif and find vif value higher than 5
-barplot(vif(Macro_SP_MoM_sol3.lm), main='VIF values', col='lightblue', las =2)
-abline(h=5, lwd=3,lty=2)
-
-```
-```{r}
-corrplot(cor(Macro_SP_MoM_sol3[names(Macro_SP_MoM_sol3)!='SP500']), order='AOE')
-```
-
-
-
-the relationship between SP500 and independent variables
+There seem existing error term autocorrelation and it is more significant for QoQ dataset, which is also approved in below graphs
 
 ```{r}
 
-x<- Macro_SP_MoM %>% correlate() %>%focus(SP500)
+res<-Macro_SP_MoM.lm$residuals
+res_lag <- lag(res)
 
-x
-```
-```{r}
-x %>%
-  mutate(term = factor(term, levels = term[order(SP500)])) %>%  # Order by correlation strength
-  ggplot(aes(x = term, y = SP500)) +
-    geom_bar(stat = "identity") +
-    ylab("Correlation with SP500 MoM") +
-    xlab("Variable")+
-  scale_x_discrete(guide = guide_axis(angle = 90))
-```
+ggplot()+geom_point(aes(res,res_lag))
 
+res<-Macro_SP_QoQ.lm$residuals
+res_lag <- lag(res)
 
-```{r}
-x<- subset(Macro_SP_QoQ, select=-shiller_PE) %>% correlate() %>%focus(SP500)
-
-x
+ggplot()+geom_point(aes(res,res_lag))
 
 ```
+
+
+------------------------------------------------
+the relationship between SP500 and independent variables  ---Jari  your graph is better than mine. I have some scatter plots here
+------------------------------------------------
 
 ```{r}
-x %>%
-  mutate(term = factor(term, levels = term[order(SP500)])) %>%  # Order by correlation strength
-  ggplot(aes(x = term, y = SP500)) +
-    geom_bar(stat = "identity") +
-    ylab("Correlation with SP500 QoQ") +
-    xlab("Variable")+
-  scale_x_discrete(guide = guide_axis(angle = 90))
+
+PPIACO<-ggplot(Macro_SP_MoM,aes(PPIACO,SP500))+geom_point(alpha=0.3)
+INDPRO<-ggplot(Macro_SP_MoM,aes(INDPRO,SP500))+geom_point(alpha=0.3)
+PAYEMS<-ggplot(Macro_SP_MoM,aes(PAYEMS,SP500))+geom_point(alpha=0.3)
+WTISPLC<-ggplot(Macro_SP_MoM,aes(WTISPLC,SP500))+geom_point(alpha=0.3)
+GDP<-ggplot(Macro_SP_MoM,aes(GDP,SP500))+geom_point(alpha=0.3)
+CPIAUCSL<-ggplot(Macro_SP_MoM,aes(CPIAUCSL,SP500))+geom_point(alpha=0.3)
+BOGZ1FA895050005Q<-ggplot(Macro_SP_MoM,aes(BOGZ1FA895050005Q,SP500))+geom_point(alpha=0.3)
+GDPC1<-ggplot(Macro_SP_MoM,aes(GDPC1,SP500))+geom_point(alpha=0.3)
+UNRATE<-ggplot(Macro_SP_MoM,aes(UNRATE,SP500))+geom_point(alpha=0.3)
+PRS85006023<-ggplot(Macro_SP_MoM,aes(PRS85006023,SP500))+geom_point(alpha=0.3)
+UMCSENT<-ggplot(Macro_SP_MoM,aes(UMCSENT,SP500))+geom_point(alpha=0.3)
+DFF<-ggplot(Macro_SP_MoM,aes(DFF,SP500))+geom_point(alpha=0.3)
+CPILFESL<-ggplot(Macro_SP_MoM,aes(CPILFESL,SP500))+geom_point(alpha=0.3)
+DSPIC96<-ggplot(Macro_SP_MoM,aes(DSPIC96,SP500))+geom_point(alpha=0.3)
+PCE<-ggplot(Macro_SP_MoM,aes(PCE,SP500))+geom_point(alpha=0.3)
+W068RCQ027SBEA<-ggplot(Macro_SP_MoM,aes(W068RCQ027SBEA,SP500))+geom_point(alpha=0.3)
+DGS10<-ggplot(Macro_SP_MoM,aes(DGS10,SP500))+geom_point(alpha=0.3)
+ICSA<-ggplot(Macro_SP_MoM,aes(ICSA,SP500))+geom_point(alpha=0.3)
+shiller_PE<-ggplot(Macro_SP_MoM,aes(shiller_PE,SP500))+geom_point(alpha=0.3)
+PERMIT<-ggplot(Macro_SP_MoM,aes(PERMIT,SP500))+geom_point(alpha=0.3)
+DXY<-ggplot(Macro_SP_MoM,aes(DXY,SP500))+geom_point(alpha=0.3)
+GFDEBTN<-ggplot(Macro_SP_MoM,aes(GFDEBTN,SP500))+geom_point(alpha=0.3)
+
+
+plot_grid(PPIACO,INDPRO,PAYEMS, 
+          WTISPLC,GDP, CPIAUCSL,
+          labels='AUTO', ncol = 3, nrow = 2)
+
+plot_grid(
+          BOGZ1FA895050005Q,GDPC1,UNRATE,
+          PRS85006023,UMCSENT,DFF,
+          labels='AUTO', ncol = 3, nrow = 2)
+
+plot_grid(
+          CPILFESL,DSPIC96,PCE,
+          PERMIT,W068RCQ027SBEA,DGS10,
+          labels='AUTO', ncol = 3, nrow = 2)
+plot_grid(
+          ICSA,shiller_PE,DXY,
+          GFDEBTN,
+          labels='AUTO', ncol = 3, nrow = 2)
+
+```
+MoM dataset, UNRATE, PAYEMS, ICSA seem to have minimum impacts on SP500
+
+```{r}
+
+PPIACO<-ggplot(Macro_SP_QoQ,aes(PPIACO,SP500))+geom_point(alpha=0.3)
+INDPRO<-ggplot(Macro_SP_QoQ,aes(INDPRO,SP500))+geom_point(alpha=0.3)
+PAYEMS<-ggplot(Macro_SP_QoQ,aes(PAYEMS,SP500))+geom_point(alpha=0.3)
+WTISPLC<-ggplot(Macro_SP_QoQ,aes(WTISPLC,SP500))+geom_point(alpha=0.3)
+GDP<-ggplot(Macro_SP_QoQ,aes(GDP,SP500))+geom_point(alpha=0.3)
+CPIAUCSL<-ggplot(Macro_SP_QoQ,aes(CPIAUCSL,SP500))+geom_point(alpha=0.3)
+BOGZ1FA895050005Q<-ggplot(Macro_SP_QoQ,aes(BOGZ1FA895050005Q,SP500))+geom_point(alpha=0.3)
+GDPC1<-ggplot(Macro_SP_QoQ,aes(GDPC1,SP500))+geom_point(alpha=0.3)
+UNRATE<-ggplot(Macro_SP_QoQ,aes(UNRATE,SP500))+geom_point(alpha=0.3)
+PRS85006023<-ggplot(Macro_SP_QoQ,aes(PRS85006023,SP500))+geom_point(alpha=0.3)
+UMCSENT<-ggplot(Macro_SP_QoQ,aes(UMCSENT,SP500))+geom_point(alpha=0.3)
+DFF<-ggplot(Macro_SP_QoQ,aes(DFF,SP500))+geom_point(alpha=0.3)
+CPILFESL<-ggplot(Macro_SP_QoQ,aes(CPILFESL,SP500))+geom_point(alpha=0.3)
+DSPIC96<-ggplot(Macro_SP_QoQ,aes(DSPIC96,SP500))+geom_point(alpha=0.3)
+PCE<-ggplot(Macro_SP_QoQ,aes(PCE,SP500))+geom_point(alpha=0.3)
+W068RCQ027SBEA<-ggplot(Macro_SP_QoQ,aes(W068RCQ027SBEA,SP500))+geom_point(alpha=0.3)
+DGS10<-ggplot(Macro_SP_QoQ,aes(DGS10,SP500))+geom_point(alpha=0.3)
+ICSA<-ggplot(Macro_SP_QoQ,aes(ICSA,SP500))+geom_point(alpha=0.3)
+shiller_PE<-ggplot(Macro_SP_QoQ,aes(shiller_PE,SP500))+geom_point(alpha=0.3)
+PERMIT<-ggplot(Macro_SP_QoQ,aes(PERMIT,SP500))+geom_point(alpha=0.3)
+DXY<-ggplot(Macro_SP_QoQ,aes(DXY,SP500))+geom_point(alpha=0.3)
+GFDEBTN<-ggplot(Macro_SP_QoQ,aes(GFDEBTN,SP500))+geom_point(alpha=0.3)
+
+
+
+
+plot_grid(PPIACO,INDPRO,PAYEMS, 
+          WTISPLC,GDP, CPIAUCSL,
+          labels='AUTO', ncol = 3, nrow = 2)
+
+plot_grid(
+          BOGZ1FA895050005Q,GDPC1,UNRATE,
+          PRS85006023,UMCSENT,DFF,
+          labels='AUTO', ncol = 3, nrow = 2)
+
+plot_grid(
+          CPILFESL,DSPIC96,PCE,
+          PERMIT,W068RCQ027SBEA,DGS10,
+          labels='AUTO', ncol = 3, nrow = 2)
+plot_grid(
+          ICSA,shiller_PE,DXY,
+          GFDEBTN,
+          labels='AUTO', ncol = 3, nrow = 2)
 ```
 
+QoQ dataset, UNRATE, PAYEMS, W068RCQ027SBEA, ICSA seem to have minimum impacts on SP500.
+Shiller_PE is about 1:1 aligned with SP500 returns because Shiller_PE's numerator is basically SP500 Index.
 
