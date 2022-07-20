@@ -1,0 +1,373 @@
+---
+title: "MoM PCA"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# load the data
+Macro_SP_MoM <- read.csv('Macro_SP_MoM.csv')
+
+# remove date
+Macro_SP_MoM <- subset(Macro_SP_MoM, select=-c(date))
+
+# remove outliers
+# we decided to keep the outliers
+# outliers <- c(249, 250, 501, 637)
+MoM <- Macro_SP_MoM
+```
+
+As shown in correlation plots in the previous exploratory data analysis, there are some strong collinearity between independent variables. Some of the problematic pairs are:
+
+UNRATE*  with W068RCQ027SBEA
+UNRATE*  with GDP* 
+UNRATE*  with GDPC1* 
+UNRATE*  with INDPRO
+UNRATE*  with PAYEMS* 
+UNRATE*  with PCE
+GDP*           with BOGZ1FA895050005Q* 
+GDP*           with GDPC1* 
+GDPC1*    with BOGZ1FA895050005Q* 
+PAYEMS*  with W068RCQ027SBEA
+PAYEMS*  with GDPC1* 
+PAYEMS*  with INDPRO
+PAYEMS*  with PCE              *:VIF>5
+
+Models with collinearity tend to have bigger confidence intervals thus we might not be able to reject H0.
+Another side effect we might observe is the regression coefficients are not significantly from zero, while R2 is high.
+And as a result, we can clearly separate out the individual effects of collinear variables on the response.
+Thus, in this project, we planed to use Principal Components Analysis might be deal with collinearity without removing any predictors beforehand.
+
+
+```{r}
+# convert to pca axis with the response
+# remove Shiller PE as its numerator is basically the SP500 index
+MoM_pred <- subset(MoM,select=-c(SP500, shiller_PE))
+pca_MoM <- prcomp(MoM_pred, scale=TRUE)
+
+# summary of 
+summary(pca_MoM)
+```
+
+21 PCs are created by re-positioning the axis to remove collinearity.
+In order to decide how many PCs to choose, let's take a look at how much of variances are explained by the number PCs
+
+```{r}
+pca_MoM.sum <- summary(pca_MoM)
+plot(pca_MoM.sum[['importance']][3,], xlab='Prinpcipal Component', 
+     ylab='Cumulative Proportion of Variance Explained', 
+     type = 'b')
+```
+
+It shows the speed of gaining explained variance slows down at 4 and becomes even slower at 15. 
+5 PCs can explain about 60% of the variance and 15 for 90%+.
+Thus, 5 and 15 PCs are the number of PCs we try at first to fit a linear regression model.
+
+```{r}
+
+PC5 <- pca_MoM$x[,1:5]
+PC5<- cbind(PC5,MoM[,23])
+
+PC15 <- pca_MoM$x[, 1:15]
+PC15 <- cbind(PC15,MoM[,23])
+```
+
+```{r}
+# fit linear regression with 5 PCs
+
+PC5.lm <- lm(V6~., data= as.data.frame(PC5))
+
+summary(PC5.lm)
+
+```
+
+adjusted R2 is 0.075. Only PC4 is statiscally significant
+
+```{r}
+# fit linear regression with 5 PCs
+
+PC15.lm <- lm(V16~., data= as.data.frame(PC15))
+
+summary(PC15.lm)
+
+```
+
+adjusted R2 is 0.14. PC1, PC4, PC6, PC7, PC10, PC12 is statistically significant
+
+Now, we convert them to the parameters of the original variables
+
+```{r}
+
+### Principal Component 5
+# convert to original axis
+beta0 <- PC5.lm$coefficients[1]
+betas <- PC5.lm$coefficients[2:6]
+alphas <- pca_MoM$rotation[,1:5] %*% betas
+
+# unscale
+originalAlpha <- alphas/sapply(MoM_pred,sd)
+originalBeta0 <- beta0 - sum(alphas*sapply(MoM_pred,mean)/sapply(MoM_pred,sd))
+
+originalAlpha
+originalBeta0
+
+parameters<-originalAlpha
+```
+
+```{r}
+### Principal Component 15
+# convert to original axis
+beta0 <- PC15.lm$coefficients[1]
+betas <- PC15.lm$coefficients[2:16]
+alphas <- pca_MoM$rotation[,1:15] %*% betas
+
+# unscale
+originalAlpha <- alphas/sapply(MoM_pred,sd)
+originalBeta0 <- beta0 - sum(alphas*sapply(MoM_pred,mean)/sapply(MoM_pred,sd))
+
+originalAlpha
+originalBeta0
+
+parameters <- cbind(parameters,originalAlpha)
+```
+
+
+Now, it is time to try different models for picking independent variables
+  Step wise regression
+  Lasso
+  Elastic Net
+  
+```{r include=FALSE}
+
+# step wise
+library(caret)
+
+PC_SP500 <-as.data.frame(cbind(pca_MoM$x, MoM[,23]))
+colnames(PC_SP500)[22]<- 'SP500'
+
+ctrl <- trainControl(method='repeatedcv', number = 5, repeats = 5)
+set.seed(0)
+
+stepwise <- train(SP500~., data = PC_SP500, "lmStepAIC", scope = 
+                      list(lower = SP500~1, upper = SP500~.), direction = "backward",trControl=ctrl)
+
+```
+
+RESULT: 
+Step:  AIC=-4508.2
+.outcome ~ PC1 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PC11 + 
+    PC12 + PC16 + PC19
+
+       Df Sum of Sq     RSS     AIC
+<none>              0.70189 -4508.2
+- PC5   1  0.003429 0.70532 -4507.0
+- PC19  1  0.003975 0.70587 -4506.5
+- PC11  1  0.004170 0.70606 -4506.3
+- PC16  1  0.004275 0.70617 -4506.2
+- PC9   1  0.004837 0.70673 -4505.6
+- PC6   1  0.005266 0.70716 -4505.2
+- PC8   1  0.006558 0.70845 -4504.0
+- PC1   1  0.007705 0.70960 -4503.0
+- PC12  1  0.010636 0.71253 -4500.2
+- PC10  1  0.019601 0.72150 -4492.0
+- PC7   1  0.028387 0.73028 -4483.9
+- PC4   1  0.053542 0.75544 -4461.5
+
+
+
+```{r}
+
+PC_SP500.lm_stepwise <- lm(SP500~PC1+PC4+PC5+PC6+PC7+PC8+PC9+PC10+PC11+PC12+PC16+PC19, data = PC_SP500)
+summary(PC_SP500.lm_stepwise)
+
+```
+
+Use less PCs but it reached higher R2 than the first 15 PCs
+
+```{r}
+### stepwise 
+# convert to original axis
+beta0 <- PC_SP500.lm_stepwise$coefficients[1]
+betas <- PC_SP500.lm_stepwise$coefficients[2:13]
+alphas <- pca_MoM$rotation[,c(1,4,5,6,7,8,9,10,11,12,16,19)] %*% betas
+
+# unscale
+originalAlpha <- alphas/sapply(MoM_pred,sd)
+originalBeta0 <- beta0 - sum(alphas*sapply(MoM_pred,mean)/sapply(MoM_pred,sd))
+
+originalAlpha
+originalBeta0
+
+parameters <- cbind(parameters,originalAlpha)
+```
+
+TRY lasso
+
+```{r}
+
+library(glmnet)
+set.seed(0)
+lasso <-cv.glmnet(x=as.matrix(PC_SP500[,-22]),y=as.matrix(PC_SP500$SP500),alpha=1,
+                nfolds = 5,type.measure="mse",family="gaussian")
+
+#Output the coefficients of the variables selected by lasso
+
+coef(lasso, s=lasso$lambda.min)
+
+```
+
+Let's see what the model looks like
+
+```{r}
+PC_SP500.lm_lasso <- lm(SP500~PC1+PC4+PC6+PC7+PC8+PC9+PC10+PC12, PC_SP500)
+
+summary(PC_SP500.lm_lasso)
+```
+
+8 PCs are picked and they are all significant
+
+```{r}
+### lasso
+# convert to original axis
+beta0 <- PC_SP500.lm_lasso$coefficients[1]
+betas <- PC_SP500.lm_lasso$coefficients[2:9]
+alphas <- pca_MoM$rotation[,c(1,4,6,7,8,9,10,12)] %*% betas
+
+# unscale
+originalAlpha <- alphas/sapply(MoM_pred,sd)
+originalBeta0 <- beta0 - sum(alphas*sapply(MoM_pred,mean)/sapply(MoM_pred,sd))
+
+originalAlpha
+originalBeta0
+parameters <- cbind(parameters,originalAlpha)
+```
+
+Elastic Net
+
+```{r}
+R2_PC=c()
+set.seed(0)
+for (i in 0:10) {
+  model = cv.glmnet(x=as.matrix(PC_SP500[,-22]),y=as.matrix(PC_SP500$SP500),
+                    alpha=i/10,nfolds = 5,type.measure="mse",family="gaussian")
+  
+  #The deviance(dev.ratio ) shows the percentage of deviance explained, 
+  #(equivalent to r squared in case of regression)
+  
+  R2_PC = cbind(R2_PC,model$glmnet.fit$dev.ratio[which(model$glmnet.fit$lambda == model$lambda.min)])
+  
+}
+
+R2_PC
+```
+
+To reach the highest R2, we can set the alpha to 0.1
+
+```{r}
+set.seed(0)
+elasticNet<- cv.glmnet(x=as.matrix(PC_SP500[,-22]), y=as.matrix(PC_SP500$SP500),
+                      alpha = 0.1, nfolds=5, type.measure= 'mse', family = 'gaussian')
+coef(elasticNet, s=elasticNet$lambda.min)
+```
+
+```{r}
+PC_SP500.lm_elasticNet0.1 <- lm(SP500~PC1+PC4+PC5+PC6+PC7+PC8+PC9+PC10+PC11+PC12+PC13+PC16+PC19, PC_SP500)
+
+summary(PC_SP500.lm_elasticNet0.1)
+```
+
+```{r}
+### elastic net 
+# convert to original axis
+beta0 <- PC_SP500.lm_elasticNet0.1$coefficients[1]
+betas <- PC_SP500.lm_elasticNet0.1$coefficients[2:15]
+alphas <- pca_MoM$rotation[,c(1,4,5,6,7,8,9,10,11,12,13,15,16,19)] %*% betas
+
+# unscale
+originalAlpha <- alphas/sapply(MoM_pred,sd)
+originalBeta0 <- beta0 - sum(alphas*sapply(MoM_pred,mean)/sapply(MoM_pred,sd))
+
+originalAlpha
+originalBeta0
+parameters <- cbind(parameters,originalAlpha)
+```
+
+visualization for parameters
+```{r}
+
+library(reshape2)
+
+colnames(parameters) <-c('first_5_PCs', 'first_15_PCs', 'stepwise','lasso','Ela0.1')
+parameters <- as.data.frame(parameters)
+
+parameters$macro <-rownames(parameters)
+rownames(parameters) <- 1:nrow(parameters)
+
+# flatten the columns
+parameters <- melt(parameters, id.vars=c('macro'))
+
+
+
+library(ggplot2)
+library("ggsci")
+
+ggplot(parameters, aes(x=variable,y=value,fill=macro))+
+    geom_bar(stat='identity', position='fill')+
+    theme_grey()
+
+write.csv(parameters,'parameters.csv')
+```
+
+```{r}
+SStot <- sum((PC_SP500$SP500 - mean(PC_SP500$SP500))^2)
+totsse <- 0
+for(i in 1:nrow(PC_SP500)) {
+  mod = lm(SP500 ~ PC1+PC2+PC3+PC4+PC5, data = PC_SP500[-i,])
+  pred_i <- predict(mod,newdata=PC_SP500[i,])
+  totsse <- totsse + ((pred_i - PC_SP500[i,22])^2)
+}
+cv_R2_first5 <- 1 - totsse/SStot
+cv_R2_first5
+
+
+totsse <- 0
+for(i in 1:nrow(PC_SP500)) {
+  mod = lm(SP500 ~ PC1+PC2+PC3+PC4+PC5+PC6+PC6+PC7+PC8+PC9+PC10+PC11+PC12+PC13+PC14+PC15, data = PC_SP500[-i,])
+  pred_i <- predict(mod,newdata=PC_SP500[i,])
+  totsse <- totsse + ((pred_i - PC_SP500[i,22])^2)
+}
+cv_R2_first15 <- 1 - totsse/SStot
+cv_R2_first15
+
+totsse <- 0
+for(i in 1:nrow(PC_SP500)) {
+  mod = lm(SP500~PC1+PC4+PC5+PC6+PC7+PC8+PC9+PC10+PC11+PC12+PC16+PC19, data = PC_SP500[-i,])
+  pred_i <- predict(mod,newdata=PC_SP500[i,])
+  totsse <- totsse + ((pred_i - PC_SP500[i,22])^2)
+}
+cv_R2_stepwise <- 1 - totsse/SStot
+cv_R2_stepwise
+
+totsse <- 0
+for(i in 1:nrow(PC_SP500)) {
+  mod = lm(SP500~PC1+PC4+PC6+PC7+PC8+PC9+PC10+PC12, data = PC_SP500[-i,])
+  pred_i <- predict(mod,newdata=PC_SP500[i,])
+  totsse <- totsse + ((pred_i - PC_SP500[i,22])^2)
+}
+cv_R2_lasso <- 1 - totsse/SStot
+cv_R2_lasso
+
+totsse <- 0
+for(i in 1:nrow(PC_SP500)) {
+  mod = lm(SP500~PC1+PC4+PC5+PC6+PC7+PC8+PC9+PC10+PC11+PC12+PC13+PC16+PC19, data = PC_SP500[-i,])
+  pred_i <- predict(mod,newdata=PC_SP500[i,])
+  totsse <- totsse + ((pred_i - PC_SP500[i,22])^2)
+}
+cv_R2_elasticNet <- 1 - totsse/SStot
+cv_R2_elasticNet
+
+
+```
