@@ -26,6 +26,7 @@ library(ggplot2)
 library(dplyr)
 library(lmtest)
 library(cowplot)
+library(fpp2)
 ```
 
 
@@ -61,6 +62,10 @@ Let's look at SP500's histogram
 hist(Macro_SP_MoM$SP500, xlab='S&P monthly returns', 
      main='S&P monthly return distribution from 1967 to 2021',
      breaks = 40, col='lightblue', ylim=c(0,100))
+
+hist(Macro_SP_QoQ$SP500, xlab='S&P quarterly returns', 
+     main='S&P quarterly return distribution from 1967 to 2021',
+     breaks = 40, col='lightblue', ylim=c(0,25))
 ```
 There are some outstanding points on the left of chart with about -20% returns.
 
@@ -286,6 +291,14 @@ res_lag <- lag(res)
 ggplot()+geom_point(aes(res,res_lag))
 
 ```
+```{r}
+
+checkresiduals(Macro_SP_MoM.lm)
+checkresiduals(Macro_SP_QoQ.lm)
+```
+For both MoM data and QoQ data,
+the Breusch-Godrey test reject the null hypothesis that the error is only white noise, suggesting that there is some other information left over which should be accounted for in the model, which also is approved by ACF graphs.
+The variance of residuals are stable most of the time but fluctuated heavily at the end. The distribution is skewed to the left. Both factors might affect p-value calculation.
 
 
 ------------------------------------------------
@@ -388,4 +401,105 @@ plot_grid(
 
 QoQ dataset, UNRATE, PAYEMS, W068RCQ027SBEA, ICSA seem to have minimum impacts on SP500.
 Shiller_PE is about 1:1 aligned with SP500 returns because Shiller_PE's numerator is basically SP500 Index.
+
+------------------------------------------------
+Error relationship with predictors
+------------------------------------------------
+
+```{r}
+residual_MoM <- Macro_SP_MoM.lm$residuals
+PPIACO<-ggplot(Macro_SP_MoM,aes(PPIACO,residual_MoM))+geom_point(alpha=0.3)
+INDPRO<-ggplot(Macro_SP_MoM,aes(INDPRO,residual_MoM))+geom_point(alpha=0.3)
+PAYEMS<-ggplot(Macro_SP_MoM,aes(PAYEMS,residual_MoM))+geom_point(alpha=0.3)
+WTISPLC<-ggplot(Macro_SP_MoM,aes(WTISPLC,residual_MoM))+geom_point(alpha=0.3)
+GDP<-ggplot(Macro_SP_MoM,aes(GDP,residual_MoM))+geom_point(alpha=0.3)
+CPIAUCSL<-ggplot(Macro_SP_MoM,aes(CPIAUCSL,residual_MoM))+geom_point(alpha=0.3)
+BOGZ1FA895050005Q<-ggplot(Macro_SP_MoM,aes(BOGZ1FA895050005Q,residual_MoM))+geom_point(alpha=0.3)
+GDPC1<-ggplot(Macro_SP_MoM,aes(GDPC1,residual_MoM))+geom_point(alpha=0.3)
+UNRATE<-ggplot(Macro_SP_MoM,aes(UNRATE,residual_MoM))+geom_point(alpha=0.3)
+PRS85006023<-ggplot(Macro_SP_MoM,aes(PRS85006023,residual_MoM))+geom_point(alpha=0.3)
+UMCSENT<-ggplot(Macro_SP_MoM,aes(UMCSENT,residual_MoM))+geom_point(alpha=0.3)
+DFF<-ggplot(Macro_SP_MoM,aes(DFF,residual_MoM))+geom_point(alpha=0.3)
+CPILFESL<-ggplot(Macro_SP_MoM,aes(CPILFESL,residual_MoM))+geom_point(alpha=0.3)
+DSPIC96<-ggplot(Macro_SP_MoM,aes(DSPIC96,residual_MoM))+geom_point(alpha=0.3)
+PCE<-ggplot(Macro_SP_MoM,aes(PCE,residual_MoM))+geom_point(alpha=0.3)
+W068RCQ027SBEA<-ggplot(Macro_SP_MoM,aes(W068RCQ027SBEA,residual_MoM))+geom_point(alpha=0.3)
+DGS10<-ggplot(Macro_SP_MoM,aes(DGS10,residual_MoM))+geom_point(alpha=0.3)
+ICSA<-ggplot(Macro_SP_MoM,aes(ICSA,residual_MoM))+geom_point(alpha=0.3)
+shiller_PE<-ggplot(Macro_SP_MoM,aes(shiller_PE,residual_MoM))+geom_point(alpha=0.3)
+PERMIT<-ggplot(Macro_SP_MoM,aes(PERMIT,residual_MoM))+geom_point(alpha=0.3)
+DXY<-ggplot(Macro_SP_MoM,aes(DXY,residual_MoM))+geom_point(alpha=0.3)
+GFDEBTN<-ggplot(Macro_SP_MoM,aes(GFDEBTN,residual_MoM))+geom_point(alpha=0.3)
+
+
+plot_grid(PPIACO,INDPRO,PAYEMS, 
+          WTISPLC,GDP, CPIAUCSL,
+          labels='AUTO', ncol = 3, nrow = 2)
+
+plot_grid(
+          BOGZ1FA895050005Q,GDPC1,UNRATE,
+          PRS85006023,UMCSENT,DFF,
+          labels='AUTO', ncol = 3, nrow = 2)
+
+plot_grid(
+          CPILFESL,DSPIC96,PCE,
+          PERMIT,W068RCQ027SBEA,DGS10,
+          labels='AUTO', ncol = 3, nrow = 2)
+plot_grid(
+          ICSA,shiller_PE,DXY,
+          GFDEBTN,
+          labels='AUTO', ncol = 3, nrow = 2)
+
+```
+PAYEMS, UNRATE, ICSA shows low correlation with Error term, as showed in former response and predictor analysis
+
+```{r}
+residuals_QoQ <- Macro_SP_QoQ.lm$residuals
+PPIACO<-ggplot(Macro_SP_QoQ,aes(PPIACO,residuals_QoQ))+geom_point(alpha=0.3)
+INDPRO<-ggplot(Macro_SP_QoQ,aes(INDPRO,residuals_QoQ))+geom_point(alpha=0.3)
+PAYEMS<-ggplot(Macro_SP_QoQ,aes(PAYEMS,residuals_QoQ))+geom_point(alpha=0.3)
+WTISPLC<-ggplot(Macro_SP_QoQ,aes(WTISPLC,residuals_QoQ))+geom_point(alpha=0.3)
+GDP<-ggplot(Macro_SP_QoQ,aes(GDP,residuals_QoQ))+geom_point(alpha=0.3)
+CPIAUCSL<-ggplot(Macro_SP_QoQ,aes(CPIAUCSL,residuals_QoQ))+geom_point(alpha=0.3)
+BOGZ1FA895050005Q<-ggplot(Macro_SP_QoQ,aes(BOGZ1FA895050005Q,residuals_QoQ))+geom_point(alpha=0.3)
+GDPC1<-ggplot(Macro_SP_QoQ,aes(GDPC1,residuals_QoQ))+geom_point(alpha=0.3)
+UNRATE<-ggplot(Macro_SP_QoQ,aes(UNRATE,residuals_QoQ))+geom_point(alpha=0.3)
+PRS85006023<-ggplot(Macro_SP_QoQ,aes(PRS85006023,residuals_QoQ))+geom_point(alpha=0.3)
+UMCSENT<-ggplot(Macro_SP_QoQ,aes(UMCSENT,residuals_QoQ))+geom_point(alpha=0.3)
+DFF<-ggplot(Macro_SP_QoQ,aes(DFF,residuals_QoQ))+geom_point(alpha=0.3)
+CPILFESL<-ggplot(Macro_SP_QoQ,aes(CPILFESL,residuals_QoQ))+geom_point(alpha=0.3)
+DSPIC96<-ggplot(Macro_SP_QoQ,aes(DSPIC96,residuals_QoQ))+geom_point(alpha=0.3)
+PCE<-ggplot(Macro_SP_QoQ,aes(PCE,residuals_QoQ))+geom_point(alpha=0.3)
+W068RCQ027SBEA<-ggplot(Macro_SP_QoQ,aes(W068RCQ027SBEA,residuals_QoQ))+geom_point(alpha=0.3)
+DGS10<-ggplot(Macro_SP_QoQ,aes(DGS10,residuals_QoQ))+geom_point(alpha=0.3)
+ICSA<-ggplot(Macro_SP_QoQ,aes(ICSA,residuals_QoQ))+geom_point(alpha=0.3)
+shiller_PE<-ggplot(Macro_SP_QoQ,aes(shiller_PE,residuals_QoQ))+geom_point(alpha=0.3)
+PERMIT<-ggplot(Macro_SP_QoQ,aes(PERMIT,residuals_QoQ))+geom_point(alpha=0.3)
+DXY<-ggplot(Macro_SP_QoQ,aes(DXY,residuals_QoQ))+geom_point(alpha=0.3)
+GFDEBTN<-ggplot(Macro_SP_QoQ,aes(GFDEBTN,residuals_QoQ))+geom_point(alpha=0.3)
+
+
+
+
+plot_grid(PPIACO,INDPRO,PAYEMS, 
+          WTISPLC,GDP, CPIAUCSL,
+          labels='AUTO', ncol = 3, nrow = 2)
+
+plot_grid(
+          BOGZ1FA895050005Q,GDPC1,UNRATE,
+          PRS85006023,UMCSENT,DFF,
+          labels='AUTO', ncol = 3, nrow = 2)
+
+plot_grid(
+          CPILFESL,DSPIC96,PCE,
+          PERMIT,W068RCQ027SBEA,DGS10,
+          labels='AUTO', ncol = 3, nrow = 2)
+plot_grid(
+          ICSA,shiller_PE,DXY,
+          GFDEBTN,
+          labels='AUTO', ncol = 3, nrow = 2)
+```
+PAYEMS, UNRATE, W068RCQ027SBEA, ICSA shows low correlation with Error term, as showed in former response and predictor analysis
+
+
 
