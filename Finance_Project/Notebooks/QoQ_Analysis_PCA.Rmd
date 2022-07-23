@@ -89,6 +89,7 @@ p2 <- ggplot(data=df_plot, mapping=aes(x = as.numeric(row.names(df_plot)), y=cum
 ggarrange(p1, p2, ncol = 2, nrow = 1)
 ```
 
+
 # Testing how many principal components is needed
 
 ```{r Testing different nro of components}
@@ -209,16 +210,15 @@ x <- as.matrix(df[,1:21])
 y <- as.vector(df[,22])
 
 # Lasso regression
-model <- cv.glmnet(x, y, scale=TRUE, alpha = 1, nfolds = 5, type.measure="mse", family="gaussian") # Lasso when alpha=1
+lasso <- cv.glmnet(x, y, scale=TRUE, alpha = 1, nfolds = 5, type.measure="mse", family="gaussian") # Lasso when alpha=1
 
-# Find optimal lambda values that minimizes MSE
-best_lambda <- model$lambda.min
-
-# Find coefficients of best model
-best_model <- glmnet(x, y, alpha=1, lambda=best_lambda)
-coef(best_model)
+# Output coefficients
+coef(lasso, s=lasso$lambda.min)
 
 ```
+
+str(y)
+
 ```{r Lasso Regression with Best Components}
 
 # Create regression model
@@ -284,6 +284,26 @@ elastic_pca_cv <- train(SP500 ~ PC1+PC2+PC3+PC5+PC6+PC8+PC9+PC10+PC11+PC12+PC15+
 print(elastic_pca_cv)
 
 ```
+```{r Elastic Net Regression Only Significant Variables}
+
+# Create regression model
+elastic_pca2 <- lm(SP500 ~ PC1+PC2+PC3+PC5+PC6+PC19, data = df)
+summary(elastic_pca2)
+
+
+#-------------------------------------------------------------------------------
+# With 10 fold cross-validation
+train.control <- trainControl(method = "repeatedcv", number = 5, repeats=5)
+
+elastic_pca_cv2 <- train(SP500 ~ PC1+PC2+PC3+PC5+PC6+PC19, data = df, 
+                   method = "lm",trControl = train.control)
+
+# Summary of the model
+print(elastic_pca_cv2)
+
+```
+
+
 
 ```{r Stepwise}
 #Create new data matrix with PCAs and SP500 QoQ change
@@ -296,7 +316,7 @@ stepwise <- train(SP500~., data = df, "lmStepAIC", scope =
 
 ```
 
-```{r Lasso Regression with Best Components}
+```{r Stepwise with Best Components}
 
 # Stepwise regression model
 stepwise_pca <- lm(SP500 ~ PC1+PC2+PC3+PC5+PC6+PC8+PC9+PC10+PC12+PC15+PC19, data = df)
@@ -314,6 +334,25 @@ stepwise_pca_cv <- train(SP500 ~ PC1+PC2+PC3+PC5+PC6+PC8+PC9+PC10+PC12+PC15+PC19
 print(stepwise_pca_cv)
 
 ```
+```{r Stepwise with Only Significant Variables}
+
+# Stepwise regression model
+stepwise_pca <- lm(SP500 ~ PC1+PC2+PC3+PC5+PC6+PC19, data = df)
+summary(stepwise_pca)
+
+
+#-------------------------------------------------------------------------------
+# With 10 fold cross-validation
+train.control <- trainControl(method = "repeatedcv", number = 5, repeats=5)
+
+stepwise_pca_cv <- train(SP500 ~ PC1+PC2+PC3+PC5+PC6+PC19, data = df, 
+                   method = "lm",trControl = train.control)
+
+# Summary of the model
+print(stepwise_pca_cv)
+
+```
+
 
 ## Testing the impact of lead-lag 
 Testing if we achieve a better r-squared by leading and lagging SP500 QoQ by 1-2 quarters. Keeping 7 PCAs selected.
@@ -345,3 +384,25 @@ mean(model_lag2$resample$Rsquared)
 ```
 
 We achieve the best results with the regular quarterly data.
+
+head(Macro_SP_QoQ)
+
+```{r linear regression}
+
+# linear regression
+lm_model <- lm(SP500 ~ UMCSENT+PERMIT, data = Macro_SP_QoQ)
+summary(lm_model)
+
+
+#-------------------------------------------------------------------------------
+# With cross-validation
+train.control <- trainControl(method = "repeatedcv", number = 5, repeats=5)
+
+lm_model_cv <- train(SP500 ~ UMCSENT+PERMIT, data = Macro_SP_QoQ, 
+                   method = "lm",trControl = train.control)
+
+# Summary of the model
+print(lm_model_cv)
+
+```
+
