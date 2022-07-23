@@ -137,15 +137,15 @@ ggarrange(p3, p4, ncol = 2, nrow = 1)
 
 ```
 
-# Regression With first 7 PCAs
+# Regression With first 11 PCAs
 
 ```{r First 7 PCAs}
 
 #Create new data matrix with first 7 PCs and SP500 QoQ change
-df_7pcs <- cbind(SP500, pca$x[,1:7]) 
+df_11pcs <- cbind(SP500, pca$x[,1:11]) 
 
 # Create regression model
-pca_model <- lm(SP500 ~., data = df_7pcs)
+pca_model <- lm(SP500 ~., data = df_11pcs)
 summary(pca_model)
 
 
@@ -153,7 +153,7 @@ summary(pca_model)
 # With 10 fold cross-validation
 train.control <- trainControl(method = "repeatedcv", number = 5, repeats=5)
 
-pca_model_cv <- train(SP500 ~., data = df_7pcs, 
+pca_model_cv <- train(SP500 ~., data = df_11pcs, 
                    method = "lm",trControl = train.control)
 
 # Summary of the model
