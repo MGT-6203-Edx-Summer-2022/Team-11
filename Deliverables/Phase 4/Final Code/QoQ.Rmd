@@ -9,7 +9,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 --------------------------------
-1. Models  for variable selections - Anuj
+#1. Models  for variable selections - Anuj
 --------------------------------
 
 ## Libraries and Data
@@ -19,23 +19,28 @@ knitr::opts_chunk$set(echo = TRUE)
 #-------------------------------------------------------------------------------
 # Libraries
 #-------------------------------------------------------------------------------
+if (!require(tidyverse)) install.packages('tidyverse')
 library(tidyverse)
+if (!require(corrplot)) install.packages('corrplot')
 library(corrplot)
-library(lubridate)
-library(anytime)
-library(car)
+if (!require(leaps)) install.packages('leaps')
 library(leaps)
+if (!require(caret)) install.packages('caret')
 library(caret)
+if (!require(glmnet)) install.packages('glmnet')
 library(glmnet)
+if (!require(tidyr)) install.packages('tidyr')
 library(tidyr)
-library(ggplot2)
+if (!require(ggpubr)) install.packages('ggpubr')
 library(ggpubr)
 
 #-------------------------------------------------------------------------------
 # Load Quarterly Data
 #-------------------------------------------------------------------------------
 # Load  data
-df <- read.csv('Macro_SP_QoQ.csv', header = TRUE, fileEncoding="UTF-8-BOM")
+df <- read.csv('~/GitHub/Team-11/Deliverables/Phase 4/Final Data Source/Macro_SP_QoQ.csv')
+
+# remove date
 df <- subset(df,select=-c(date))
 
 # Remove Shiller_PE
@@ -47,23 +52,24 @@ summary(Macro_SP_QoQ)
 ```
 
 
-## Stepwise Linear Regression (original dataset)
+## Stepwise Linear Regression
+
 
 ```{r stepwise regression}
 #create null and full models
 m0 <- lm(SP500 ~ 1, data = Macro_SP_QoQ)
 m1 <- lm(SP500 ~ ., data = Macro_SP_QoQ)
-
 ```
 
 ```{r forward}
+
 forward <- step(m0, scope = list(lower = m0, upper = m1),
                 direction = "forward", k = log(NROW(Macro_SP_QoQ$SP500)), trace = 0)
 summary(forward)
 forward$anova
-extractAIC(forward) 
+extractAIC(forward)
 
-
+#adj r2 .2689, 2 variables selected
 ```
 
 ```{r backward}
@@ -74,7 +80,7 @@ summary(backward)
 backward$anova
 extractAIC(backward) 
 
-
+#adj2 .3252, 7 variables selected
 ```
 
 ```{r both}
@@ -83,8 +89,9 @@ both <- step(m0, scope = list(lower = m0, upper = m1),
 summary(both)
 both$anova
 extractAIC(both) 
-#same model as forward selection
 
+#same model as forward selection
+#adj r2 .2689, 2 variables selected
 ```
 
 ```{r exhaustive search using leaps}
@@ -95,14 +102,14 @@ s <- summary(leaps_model)
 print(s)
 
 plot(leaps_model, scale = "bic")
+# using BIC as information criterion, 2 variable selection is best
+# using adj r2 or AIC, 8 variable selection is best
 
 plot(s$adjr2, xlab = "No. of variables", ylab = "Adjusted R Squared")
 points(which.max(s$adjr2), s$adjr2[which.max(s$adjr2)],pch = 19, col = 'red')
 
 plot(s$cp, xlab = "No. of variables", ylab = "AIC")
 points(which.min(s$cp), s$cp[which.min(s$cp)],pch = 19, col = 'red')
-
-# Using Mallow's Criterion, p = 10 predictor variables
 
 plot(s$bic, xlab = "No. of variables", ylab = "BIC")
 points(which.min(s$bic), s$bic[which.min(s$bic)],pch = 19, col = 'red')
@@ -111,207 +118,6 @@ final_leaps <- regsubsets(Macro_SP_QoQ$SP500 ~ .,
                                  data = Macro_SP_QoQ, nvmax = 9)
 plot(final_leaps, scale = "bic")
 
-```
-
-
-## Stepwise Linear Regression (sol1 data  set)
-
-```{r stepwise regression}
-#create null and full models
-m0 <- lm(SP500 ~ 1, data = Macro_SP_QoQ_sol1)
-m1 <- lm(SP500 ~ ., data = Macro_SP_QoQ_sol1)
-
-```
-
-```{r forward}
-forward <- step(m0, scope = list(lower = m0, upper = m1),
-                direction = "forward", k = log(NROW(Macro_SP_QoQ_sol1$SP500)), trace = 0)
-summary(forward)
-forward$anova
-extractAIC(forward) 
-
-```
-
-```{r backward}
-
-backward <- step(m1, scope = list(lower = m0, upper = m1),
-                direction = "backward", k = log(NROW(Macro_SP_QoQ_sol1$SP500)), trace = 0)
-summary(backward)
-backward$anova
-extractAIC(backward) 
-
-```
-
-```{r both}
-both <- step(m0, scope = list(lower = m0, upper = m1),
-                direction = "both", k = log(NROW(Macro_SP_QoQ_sol1$SP500)), trace = 0)
-summary(both)
-both$anova
-extractAIC(both) 
-# same model as forward selection
-```
-
-```{r exhaustive search using leaps}
-
-leaps_model <- regsubsets(Macro_SP_QoQ_sol1$SP500 ~ ., 
-                                 data = Macro_SP_QoQ_sol1, nvmax = 19)
-s <- summary(leaps_model)
-print(s)
-
-plot(leaps_model, scale = "bic")
-
-plot(s$adjr2, xlab = "No. of variables", ylab = "Adjusted R Squared")
-points(which.max(s$adjr2), s$adjr2[which.max(s$adjr2)],pch = 19, col = 'red')
-
-plot(s$cp, xlab = "No. of variables", ylab = "AIC")
-points(which.min(s$cp), s$cp[which.min(s$cp)],pch = 19, col = 'red')
-
-# Using Mallow's Criterion, p = 10 predictor variables, same as original dataset
-
-plot(s$bic, xlab = "No. of variables", ylab = "BIC")
-points(which.min(s$bic), s$bic[which.min(s$bic)],pch = 19, col = 'red')
-
-# Using BIC, p = 7 predictor variables, same as stepwise regression
-
-final_leaps <- regsubsets(Macro_SP_QoQ_sol1$SP500 ~ ., 
-                                 data = Macro_SP_QoQ_sol1, nvmax = 7)
-plot(final_leaps, scale = "bic")
-# summary(final_leaps)
-# same model as forward stepwise model
-```
-
-## Stepwise Linear Regression (sol2 data  set)
-
-```{r stepwise regression}
-#create null and full models
-m0 <- lm(SP500 ~ 1, data = Macro_SP_QoQ_sol2)
-m1 <- lm(SP500 ~ ., data = Macro_SP_QoQ_sol2)
-
-```
-
-```{r forward}
-forward <- step(m0, scope = list(lower = m0, upper = m1),
-                direction = "forward", k = log(NROW(Macro_SP_QoQ_sol2$SP500)), trace = 0)
-summary(forward)
-forward$anova
-extractAIC(forward)
-
-```
-
-```{r backward}
-
-backward <- step(m1, scope = list(lower = m0, upper = m1),
-                direction = "backward", k = log(NROW(Macro_SP_QoQ_sol2$SP500)), trace = 0)
-summary(backward)
-backward$anova
-extractAIC(backward) 
-
-```
-
-```{r both}
-both <- step(m0, scope = list(lower = m0, upper = m1),
-                direction = "both", k = log(NROW(Macro_SP_QoQ_sol2$SP500)), trace = 0)
-summary(both)
-both$anova
-extractAIC(both) 
-# same model as forward
-```
-
-```{r exhaustive search using leaps}
-
-leaps_model <- regsubsets(Macro_SP_QoQ_sol2$SP500 ~ ., 
-                                 data = Macro_SP_QoQ_sol2, nvmax = 19)
-s <- summary(leaps_model)
-print(s)
-
-plot(leaps_model, scale = "bic")
-
-plot(s$adjr2, xlab = "No. of variables", ylab = "Adjusted R Squared")
-points(which.max(s$adjr2), s$adjr2[which.max(s$adjr2)],pch = 19, col = 'red')
-
-plot(s$cp, xlab = "No. of variables", ylab = "AIC")
-points(which.min(s$cp), s$cp[which.min(s$cp)],pch = 19, col = 'red')
-
-# Using Mallow's Criterion, p = 11 predictor variables, same as original dataset
-
-plot(s$bic, xlab = "No. of variables", ylab = "BIC")
-points(which.min(s$bic), s$bic[which.min(s$bic)],pch = 19, col = 'red')
-
-# Using BIC, p = 6 predictor variables, same as stepwise regression
-
-final_leaps <- regsubsets(Macro_SP_QoQ_sol2$SP500 ~ ., 
-                                 data = Macro_SP_QoQ_sol2, nvmax = 6)
-plot(final_leaps, scale = "bic")
-# summary(final_leaps)
-# same model as forward stepwise regression model
-```
-
-## Stepwise Linear Regression (sol3 data  set)
-
-```{r stepwise regression}
-#create null and full models
-m0 <- lm(SP500 ~ 1, data = Macro_SP_QoQ_sol3)
-m1 <- lm(SP500 ~ ., data = Macro_SP_QoQ_sol3)
-
-```
-
-```{r forward}
-forward <- step(m0, scope = list(lower = m0, upper = m1),
-                direction = "forward", k = log(NROW(Macro_SP_QoQ_sol3$SP500)), trace = 0)
-summary(forward)
-forward$anova
-extractAIC(forward) 
-```
-
-```{r backward}
-
-backward <- step(m1, scope = list(lower = m0, upper = m1),
-                direction = "backward", k = log(NROW(Macro_SP_QoQ_sol3$SP500)), trace = 0)
-summary(backward)
-backward$anova
-extractAIC(backward) 
-
-
-```
-
-```{r both}
-both <- step(m0, scope = list(lower = m0, upper = m1),
-                direction = "both", k = log(NROW(Macro_SP_QoQ_sol3$SP500)), trace = 0)
-summary(both)
-both$anova
-extractAIC(both) 
-# same model as forward selection
-```
-
-```{r exhaustive search using leaps}
-
-leaps_model <- regsubsets(Macro_SP_QoQ_sol3$SP500 ~ ., 
-                                 data = Macro_SP_QoQ_sol3, nvmax = 19)
-s <- summary(leaps_model)
-print(s)
-
-plot(leaps_model, scale = "bic")
-
-plot(s$adjr2, xlab = "No. of variables", ylab = "Adjusted R Squared")
-points(which.max(s$adjr2), s$adjr2[which.max(s$adjr2)],pch = 19, col = 'red')
-
-# no real difference in adjusted R squared based on num of predictors
-
-plot(s$cp, xlab = "No. of variables", ylab = "AIC")
-points(which.min(s$cp), s$cp[which.min(s$cp)],pch = 19, col = 'red')
-
-# Using Mallow's Criterion, p = 12 predictor variables, same as original dataset
-
-plot(s$bic, xlab = "No. of variables", ylab = "BIC")
-points(which.min(s$bic), s$bic[which.min(s$bic)],pch = 19, col = 'red')
-
-# Using BIC, p = 5 predictor variables, same as stepwise regression
-
-final_leaps <- regsubsets(Macro_SP_QoQ_sol3$SP500 ~ ., 
-                                 data = Macro_SP_QoQ_sol3, nvmax = 5)
-plot(final_leaps, scale = "bic")
-# summary(final_leaps)
-# same model as stepwise regression
 ```
 
 ## Final Stepwise models
@@ -337,48 +143,89 @@ test_resample = function(fit, data) {
 Macro_SP_QoQ_0m0 <- lm(SP500 ~ 1, data = Macro_SP_QoQ)
 Macro_SP_QoQ_0m1 <- lm(SP500 ~ ., data = Macro_SP_QoQ)
 
-sol0_model <- step(Macro_SP_QoQ_0m0, scope = list(lower = Macro_SP_QoQ_0m0, upper = Macro_SP_QoQ_0m1),
-                direction = "forward", k = log(NROW(Macro_SP_QoQ$SP500)), trace = 0)
-#summary(sol0_model)
+lm.fit.foward <- step(Macro_SP_QoQ_0m0, scope = list(lower = Macro_SP_QoQ_0m0, upper = Macro_SP_QoQ_0m1),
+                direction = "both", k = log(NROW(Macro_SP_QoQ$SP500)), trace = 0)
+summary(lm.fit.foward)
 
-Macro_SP_QoQ_1m0 <- lm(SP500 ~ 1, data = Macro_SP_QoQ_sol1)
-Macro_SP_QoQ_1m1 <- lm(SP500 ~ ., data = Macro_SP_QoQ_sol1)
+lm.fit.backward <- step(Macro_SP_QoQ_0m1, scope = list(lower = Macro_SP_QoQ_0m0, upper = Macro_SP_QoQ_0m1),
+                direction = "both", k = log(NROW(Macro_SP_QoQ$SP500)), trace = 0)
+summary(lm.fit.backward)
 
-sol1_model <- step(Macro_SP_QoQ_1m0 , scope = list(lower = Macro_SP_QoQ_1m0 , upper = Macro_SP_QoQ_1m1),
-                direction = "forward", k = log(NROW(Macro_SP_QoQ_sol1$SP500)), trace = 0)
-#summary(sol1_model)
+df <- data.frame("Model" = c("Full Model", "Forward Stepwise",
+                             "Backward Stepwise", "ElasticNet Caret",
+                             "ElasticNet GLMNET", "LASSO"),
+                 "RMSE" = rep(0,6),
+                 "RSquared" = rep(0,6),
+                 "MAE" = rep(0,6))
 
-Macro_SP_QoQ_2m0 <- lm(SP500 ~ 1, data = Macro_SP_QoQ_sol2)
-Macro_SP_QoQ_2m1 <- lm(SP500 ~ ., data = Macro_SP_QoQ_sol2)
-
-sol2_model <- step(Macro_SP_QoQ_2m0, scope = list(lower = Macro_SP_QoQ_2m0, upper = Macro_SP_QoQ_2m1),
-                direction = "forward", k = log(NROW(Macro_SP_QoQ_sol2$SP500)), trace = 0)
-#summary(sol2_model)
-
-Macro_SP_QoQ_3m0 <- lm(SP500 ~ 1, data = Macro_SP_QoQ_sol3)
-Macro_SP_QoQ_3m1 <- lm(SP500 ~ ., data = Macro_SP_QoQ_sol3)
-
-sol3_model <- step(Macro_SP_QoQ_3m0, scope = list(lower = Macro_SP_QoQ_3m0, upper = Macro_SP_QoQ_3m1),
-                direction = "forward", k = log(NROW(Macro_SP_QoQ_sol3$SP500)), trace = 0)
-#summary(sol3_model)
-
-df <- data.frame("Model" = c("Stepwise Orig Data", "Stepwise Sol 1",
-                             "Stepwise Sol 2", "Stepwise Sol 3",
-                             "ElasticNet Orig Data", "ElasticNet Sol 1", 
-                             "ElasticNet Sol 2", "ElasticNet Sol 3"),
-                 "RMSE" = rep(0,8),
-                 "RSquared" = rep(0,8),
-                 "MAE" = rep(0,8))
-
-df[1,2:4] <- test_resample(sol0_model, Macro_SP_QoQ)
-df[2,2:4] <- test_resample(sol1_model, Macro_SP_QoQ_sol1)
-df[3,2:4] <- test_resample(sol2_model, Macro_SP_QoQ_sol2)
-df[4,2:4] <- test_resample(sol3_model, Macro_SP_QoQ_sol3)
+df[1,2:4] <- test_resample(Macro_SP_QoQ_0m1, Macro_SP_QoQ)
+df[2,2:4] <- test_resample(lm.fit_foward, Macro_SP_QoQ)
+df[3,2:4] <- test_resample(lm.fit_backward, Macro_SP_QoQ)
 
 ```
 
 ## ElasticNet Linear Regression Models
 
+### LASSO
+
+```{r LASSO}
+
+set.seed(42)
+
+X = model.matrix(SP500 ~ ., data = Macro_SP_QoQ)[,-1]
+Y = Macro_SP_QoQ$SP500
+
+model_lasso <- glmnet(x = X, y = Y, alpha = 1, nfolds = 10,
+type.measure = "mse", family = "gaussian", standardize = TRUE)
+
+print(model_lasso)
+plot(model_lasso)
+
+```
+
+```{r LASSO variable selection part 1}
+
+
+set.seed(42)
+
+cv_lasso <- cv.glmnet(x = X, y = Y, alpha = 1, nfolds = 10,
+type.measure = "mse", family = "gaussian", standardize = TRUE)
+print(cv_lasso)
+
+cv_lasso$lambda.min
+cv_lasso$lambda.1se
+#we can choose to use lambda within 1 standard error or use the min lambda.
+#we use lambda min because 1se removes all variables
+
+head(cbind(cv_lasso$lambda, cv_lasso$cvm, cv_lasso$nzero))
+
+#fit_lasso_cv_sol0
+coef(cv_lasso, s = "lambda.min") 
+
+# 4 variables kept
+# we will see that these will be the same as ElasticNet variable selection
+
+sum(coef(cv_lasso,s = "lambda.min") != 0) # num of predictors that are not 0
+sum(coef(cv_lasso, s = "lambda.min") == 0) # num of variables where coef = 0
+
+plot(cv_lasso$lambda, cv_lasso$glmnet.fit$dev.ratio) # plot R squared vs lambda
+```
+
+```{r Variable Selection using LASSO}
+
+LASSO.fit <- lm(SP500 ~ GDPC1 + PRS85006023 + UMCSENT + PERMIT, Macro_SP_QoQ)
+#LASSO model, no L1 regularization
+
+#show model output
+summary(LASSO.fit)
+
+# cross-validation
+df[6,2:4] <- test_resample(LASSO.fit, Macro_SP_QoQ)
+
+```
+
+
+### ElasticNet
 ```{r}
 set.seed(1)
 
@@ -395,6 +242,8 @@ get_best_result = function(caret_fit) {
 
 ```{r sol0 ElasticNet}
 
+# caret trained ElasticNet model
+
 set.seed(1)
 
 sol0_elnet = train(
@@ -410,14 +259,14 @@ get_best_result(sol0_elnet)
 
 ```{r sol0 variable selection}
 
+# manually trained ElasticNet model
 
 QoQ_scaled <- as.data.frame(scale(Macro_SP_QoQ))
 
 set.seed(1)
 
-
 fit_lasso_cv_sol0 = cv.glmnet(x=as.matrix(QoQ_scaled[,-22]),y=as.matrix(QoQ_scaled$SP500),
-                    alpha=0.775,nfolds = 5,type.measure="mse",family="gaussian")
+                    alpha=0.7,nfolds = 5,type.measure="mse",family="gaussian")
 
 
 coef(fit_lasso_cv_sol0, s=fit_lasso_cv_sol0$lambda.min)
@@ -425,129 +274,36 @@ sum(coef(fit_lasso_cv_sol0) != 0) # num of predictors that are not 0
 sum(coef(fit_lasso_cv_sol0) == 0) # num of variables where coef = 0
 ```
 
-```{r}
-QoQ.lm <- lm(SP500~WTISPLC+GDPC1+PRS85006023+UMCSENT+PERMIT,Macro_SP_QoQ)
-summary(QoQ.lm)
-```
-
-```{r sol1 ElasticNet}
-
-set.seed(1)
-
-sol1_elnet = train(
-  SP500 ~ ., data = Macro_SP_QoQ_sol1,
-  method = "glmnet", preProc = c("center", "scale"),
-  trControl = cv_5, tuneLength = 10)
-
-print(sol1_elnet)
-
-get_best_result(sol1_elnet)
-
-```
-
-```{r sol1 variable selection}
-
-
-X_sol1 = model.matrix(SP500 ~ ., data = Macro_SP_QoQ_sol1)[,-1]
-Y_sol1 = Macro_SP_QoQ_sol1$SP500
-
-set.seed(1)
-
-fit_lasso_cv_sol1 <- cv.glmnet(X_sol1, Y_sol1, 
-                               alpha = get_best_result(sol1_elnet)[1,1], 
-                               family = "gaussian", standardize = TRUE)
-#fit_lasso_cv_sol1
-coef(fit_lasso_cv_sol1)
-
-sum(coef(fit_lasso_cv_sol1) != 0) # num of predictors that are not 0
-sum(coef(fit_lasso_cv_sol1) == 0) # num of variables where coef = 0
-```
-
-```{r sol2 ElasticNet}
-
-set.seed(1)
-
-sol2_elnet = train(
-  SP500 ~ ., data = Macro_SP_QoQ_sol2,
-  method = "glmnet", preProc = c("center", "scale"),
-  trControl = cv_5, tuneLength = 10)
-
-print(sol2_elnet)
-
-get_best_result(sol2_elnet)
-
-```
-
-```{r sol2 variable selection}
-
-
-X_sol2 = model.matrix(SP500 ~ ., data = Macro_SP_QoQ_sol2)[,-1]
-Y_sol2 = Macro_SP_QoQ_sol2$SP500
-
-set.seed(1)
-
-fit_lasso_cv <- cv.glmnet(X_sol2, Y_sol2, 
-                          alpha = get_best_result(sol2_elnet)[1,1], 
-                          family = "gaussian", standardize = TRUE)
-#fit_lasso_cv
-coef(fit_lasso_cv)
-
-sum(coef(fit_lasso_cv) != 0) # num of predictors that are not 0
-sum(coef(fit_lasso_cv) == 0) # num of variables where coef = 0
-```
-
-
-```{r sol3 ElasticNet}
-
-set.seed(1)
-
-sol3_elnet = train(
-  SP500 ~ ., data = Macro_SP_QoQ_sol3,
-  method = "glmnet", preProc = c("center", "scale"),
-  trControl = cv_5, tuneLength = 10)
-
-print(sol3_elnet)
-
-get_best_result(sol3_elnet)
-
-```
-
-```{r sol3 variable selection}
-
-
-X_sol3 = model.matrix(SP500 ~ ., data = Macro_SP_QoQ_sol3)[,-1]
-Y_sol3 = Macro_SP_QoQ_sol3$SP500
-
-set.seed(1)
-
-fit_lasso_cv <- cv.glmnet(X_sol3, Y_sol3, 
-                          alpha = get_best_result(sol3_elnet)[1,1], 
-                          family = "gaussian", standardize = TRUE)
-#fit_lasso_cv
-coef(fit_lasso_cv) # 6 variables kept
-
-sum(coef(fit_lasso_cv) != 0) # num of predictors that are not 0
-sum(coef(fit_lasso_cv) == 0) # num of variables where coef = 0
-```
-
 ```{r test elasticnet models}
-#sol 0 EL
-df[5,2:4] <- test_resample(sol0_elnet, Macro_SP_QoQ)
 
-#sol 1 EL
-df[6,2:4] <- test_resample(sol1_elnet, Macro_SP_QoQ_sol1)
+# caret trained model
+df[4,2:4] <- test_resample(sol0_elnet, Macro_SP_QoQ)
 
-#sol 2 EL
-df[7,2:4] <- test_resample(sol2_elnet, Macro_SP_QoQ_sol2)
+test_resample_glmnet = function(fit, data) {
+  set.seed(42)
+  index <- createDataPartition(data$SP500, p = 0.9, times = 1, list = FALSE)
+  train <- data[index,]
+  test <- data[-index,]
+  testx <- as.matrix(test[,-22])
+  pred <- predict(fit, testx, s = fit$lambda.min)
+  postResample(pred, test$SP500)
+}
 
-#sol 3 EL
-df[8,2:4] <- test_resample(sol3_elnet, Macro_SP_QoQ_sol3)
+# manually trained model
+df[5,2:4] <- test_resample_glmnet(fit_lasso_cv_sol0, Macro_SP_QoQ)
 
-print(df)
+```
+
+```{r cross validation results}
+
+tibble(df)
+
+# best model is still full model
+
 ```
 
 --------------------------------
-2. Models with PCA transformation and variable selections - Jari
+#2. Models with PCA transformation and variable selections - Jari
 --------------------------------
 
 ```{r data}
@@ -606,7 +362,7 @@ ggarrange(p1, p2, ncol = 2, nrow = 1)
 ```
 
 
-# Testing how many principal components is needed
+## Testing how many principal components is needed
 
 ```{r Testing different nro of components}
 # Creating empty vectors to store Rsquared values with and without CV
@@ -666,7 +422,7 @@ ggarrange(p3, p4, ncol = 2, nrow = 1)
 
 ```
 
-# Regression With first 11 PCAs
+## Regression With first 11 PCAs
 
 ```{r First 11 PCAs}
 
@@ -706,7 +462,7 @@ originalAlpha
 
 ```
 
-# Lasso Regression
+## Lasso Regression
 
 ```{r Lasso}
 
@@ -744,7 +500,7 @@ print(lasso_pca_cv)
 
 ```
 
-# Elastic Net
+## Elastic Net
 
 ```{r Elastic Best Alpha}
 #We vary alpha in steps of 0.1 from 0 to 1 and calculate the resultant R-Squared values
@@ -763,7 +519,7 @@ alpha_best
 
 ```
 
-#Lets build the model using this alpha value.
+##Lets build the model using this alpha value.
 ```{r Elastic Net Coef}
 Elastic_net=cv.glmnet(x=x, y=y, alpha=alpha_best, nfolds = 5, type.measure="mse", family="gaussian")
 

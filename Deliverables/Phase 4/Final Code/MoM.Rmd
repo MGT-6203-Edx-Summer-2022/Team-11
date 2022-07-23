@@ -6,7 +6,6 @@ output: html_document
 
 ```{r "knitr config", cache = FALSE, include=FALSE}
 require("knitr")
-knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
@@ -15,19 +14,21 @@ knitr::opts_chunk$set(echo = TRUE)
 #-------------------------------------------------------------------------------
 # Libraries
 #-------------------------------------------------------------------------------
+if (!require(tidyverse)) install.packages('tidyverse')
 library(tidyverse)
+if (!require(corrplot)) install.packages('corrplot')
 library(corrplot)
-library(lubridate)
-library(anytime)
-library(car)
+if (!require(leaps)) install.packages('leaps')
 library(leaps)
+if (!require(caret)) install.packages('caret')
 library(caret)
+if (!require(glmnet)) install.packages('glmnet')
 library(glmnet)
+
 #-------------------------------------------------------------------------------
 # Load Monthly Data
 #-------------------------------------------------------------------------------
 # Load  data
-knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
 
 Macro_SP_MoM <- read.csv('~/GitHub/Team-11/Deliverables/Phase 4/Final Data Source/Macro_SP_MoM.csv')
 
@@ -171,7 +172,7 @@ Macro_SP_MoM_0m0 <- lm(SP500 ~ 1, data = Macro_SP_MoM)
 Macro_SP_MoM_0m1 <- lm(SP500 ~ ., data = Macro_SP_MoM)
 
 lm.fit <- lm(SP500 ~ ., Macro_SP_MoM)
-#full modell
+#full model
 
 stepwise.fit <- step(Macro_SP_MoM_0m1, scope = list(lower = Macro_SP_MoM_0m0, upper = Macro_SP_MoM_0m1),
                 direction = "both", k = log(NROW(Macro_SP_MoM$SP500)), trace = 0)
@@ -723,7 +724,7 @@ MoM_res <- subset(MoM,select=c(SP500))
 
 ```
 
-```{r Lag/Lead Daqa Transformormation}
+```{r Lag/Lead Data Transformormation}
 
 # shift the SP500 D:delayed reaction, P:Price in expectation
 D12 <- cbind(MoM_pred[1:646,],MoM_res[13:658,])
