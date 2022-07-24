@@ -142,6 +142,7 @@ test_resample = function(fit, data) {
 
 Macro_SP_QoQ_0m0 <- lm(SP500 ~ 1, data = Macro_SP_QoQ)
 Macro_SP_QoQ_0m1 <- lm(SP500 ~ ., data = Macro_SP_QoQ)
+summary(Macro_SP_QoQ_0m1)
 
 lm.fit.foward <- step(Macro_SP_QoQ_0m0, scope = list(lower = Macro_SP_QoQ_0m0, upper = Macro_SP_QoQ_0m1),
                 direction = "both", k = log(NROW(Macro_SP_QoQ$SP500)), trace = 0)
@@ -159,8 +160,8 @@ df <- data.frame("Model" = c("Full Model", "Forward Stepwise",
                  "MAE" = rep(0,6))
 
 df[1,2:4] <- test_resample(Macro_SP_QoQ_0m1, Macro_SP_QoQ)
-df[2,2:4] <- test_resample(lm.fit_foward, Macro_SP_QoQ)
-df[3,2:4] <- test_resample(lm.fit_backward, Macro_SP_QoQ)
+df[2,2:4] <- test_resample(lm.fit.foward, Macro_SP_QoQ)
+df[3,2:4] <- test_resample(lm.fit.backward, Macro_SP_QoQ)
 
 ```
 
