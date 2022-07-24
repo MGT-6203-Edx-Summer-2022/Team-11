@@ -4,9 +4,7 @@
 # the binned models. Complete analysis of this work is in the Final Report.
 
 # Importing libraries for analysis
-if (!require(ggplot2)) install.packages('ggplot2')
 library(ggplot2)
-if (!require(caret)) install.packages('caret')
 library(caret)
 
 # Working directory must be set to Team-011 repository
