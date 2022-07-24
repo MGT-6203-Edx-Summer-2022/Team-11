@@ -46,7 +46,7 @@ class FRED:
             raise Exception('You did not specify an API Key')
 
 
-variables = pd.read_excel('metadata.xlsx', 'Sheet1')
+variables = pd.read_excel('~/Documents/GitHub/Team-11/Deliverables/Phase 4/Final Data Source/metadata.xlsx', 'Sheet1')
 fred_vars = variables[variables['API'] == 'FRED']['FRED Code'].reset_index()
 fred = FRED()
 fred.set_token(api)
@@ -71,11 +71,11 @@ shiller_PE = Shiller_PE.assign(Date=lambda cols: pd.to_datetime(cols['Date'])) \
 # kaggle : https://www.kaggle.com/datasets/henryhan117/sp-500-historical-data
 # wsj : https://www.wsj.com/market-data/quotes/index/SPX/historical-prices
 
-SP500 = pd.read_csv('SPX.csv')[['Date', 'Close']].assign(Date=lambda cols: pd.to_datetime(cols['Date'])) \
+SP500 = pd.read_csv('~/Documents/GitHub/Team-11/Deliverables/Phase 4/Final Data Source/SPX.csv')[['Date', 'Close']].assign(Date=lambda cols: pd.to_datetime(cols['Date'])) \
     .rename(columns={'Close': 'SP500', 'Date': 'date'})
 # yahoo finance
 # https://finance.yahoo.com/quote/DX-Y.NYB/history?period1=31795200&period2=1656288000&interval=1d&filter=history&frequency=1d&includeAdjustedClose=true
-DXY = pd.read_csv('DX-Y.NYB.csv')[['Date', 'Close']].assign(Date=lambda cols: pd.to_datetime(cols['Date'])) \
+DXY = pd.read_csv('~/Documents/GitHub/Team-11/Deliverables/Phase 4/Final Data Source/DX-Y.NYB.csv')[['Date', 'Close']].assign(Date=lambda cols: pd.to_datetime(cols['Date'])) \
     .rename(columns={'Close': 'DXY', 'Date': 'date'})
 
 # join the other data

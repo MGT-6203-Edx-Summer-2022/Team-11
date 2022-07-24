@@ -30,7 +30,7 @@ library(glmnet)
 #-------------------------------------------------------------------------------
 # Load  data
 
-Macro_SP_MoM <- read.csv('~/GitHub/Team-11/Deliverables/Phase 4/Final Data Source/Macro_SP_MoM.csv')
+Macro_SP_MoM <- read.csv('~/Documents/GitHub/Team-11/Deliverables/Phase 4/Final Data Source/Macro_SP_MoM.csv')
 
 # Remove Date column and Shiller_PE
 Macro_SP_MoM <- subset(Macro_SP_MoM, select=-c(date))
@@ -344,7 +344,7 @@ Thus, we planed to use Principal Components Analysis might be deal with collinea
 
 ```{r data preparation and PCA transformation}
 # load the data
-Macro_SP_MoM <- read.csv('~/GitHub/Team-11/Deliverables/Phase 4/Final Data Source/Macro_SP_MoM.csv')
+Macro_SP_MoM <- read.csv('~/Documents/GitHub/Team-11/Deliverables/Phase 4/Final Data Source/Macro_SP_MoM.csv')
 
 # remove date
 Macro_SP_MoM <- subset(Macro_SP_MoM, select=-c(date))
@@ -707,7 +707,7 @@ In the market, there are investors who usually price in their expection and they
 ```{r Lag/Lead Data Preparation}
 
 # load the data again
-Macro_SP_MoM <- read.csv('~/GitHub/Team-11/Deliverables/Phase 4/Final Data Source/Macro_SP_MoM.csv')
+Macro_SP_MoM <- read.csv('~/Documents/GitHub/Team-11/Deliverables/Phase 4/Final Data Source/Macro_SP_MoM.csv')
 
 # remove date
 Macro_SP_MoM <- subset(Macro_SP_MoM, select=-c(date))
