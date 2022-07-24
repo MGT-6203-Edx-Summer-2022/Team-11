@@ -10,7 +10,7 @@ library(caret)
 # Working directory must be set to Team-011 repository
 # Import data as dataframe
 r <- getwd()
-filepath <- paste(r, '/Data preparation/Macro_SP_MoM.csv', sep = '')
+filepath <- paste(r, '/Deliverables/Phase 4/Final Data Source/Macro_SP_MoM.csv', sep = '')
 Macro_SP_MoM <- read.csv(filepath)
 
 # Create columns to identify bins 1-11
