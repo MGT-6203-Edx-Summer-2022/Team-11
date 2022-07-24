@@ -6,7 +6,7 @@ In this project, we decided to analyze the relationship between various macroeco
 
 ## Getting Started
 
-To get started, simply clone the repository and run the Rmd files using R Studio. 
+To get started, simply clone the repository. You may run the Rmd notebook files using R Studio. 
 
 We use financial data from FRED, yFinance, and NASDAQ APIs. We provide the .py script to pull and export the datasets or you may use the .csv files in Final Data Source folder. Python requirements may be found in the requirements.txt file.
 
