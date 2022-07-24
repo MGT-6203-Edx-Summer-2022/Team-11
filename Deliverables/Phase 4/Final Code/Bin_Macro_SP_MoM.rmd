@@ -7,10 +7,10 @@
 library(ggplot2)
 library(caret)
 
-# Set filepath equal to Macro_SP_MoM.csv location
-r  = getwd()
-setwd(r)
-filepath = paste(r, '/Data preparation/Macro_SP_MoM.csv', sep = '')
+# Working directory must be set to Team-011 repository
+# Import data as dataframe
+r <- getwd()
+filepath <- paste(r, '/Data preparation/Macro_SP_MoM.csv', sep = '')
 Macro_SP_MoM <- read.csv(filepath)
 
 # Create columns to identify bins 1-11
@@ -680,7 +680,7 @@ ggplot(para_five_df, aes(x = 1:11)) +
   geom_line(aes(y = GFDEBTN_five), color = 'green', linetype = 3) +
   geom_line(aes(y = ICSA_five), color = 'dark gray', linetype = 3) +
   geom_line(aes(y = DXY_five), color = 'light gray', linetype = 3) +
-  labs(title = 'All Patameters Over Five Year Bins') +
+  labs(title = 'All Parameters Over Five Year Bins') +
   scale_x_continuous(breaks = 1:11, labels = Bins_Five) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
   xlab('Bins') +
@@ -777,7 +777,7 @@ ggplot(para_ten_df, aes(x = 1:6)) +
   geom_line(aes(y = DXY_ten), color = 'light gray', linetype = 3) +
   scale_x_continuous(breaks = 1:6, labels = Bins_Ten) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-  labs(title = 'All Patameters Over Ten Year Bins') +
+  labs(title = 'All Parameters Over Ten Year Bins') +
   xlab('Bins') +
   ylab('Parameter Values')
 
@@ -1393,7 +1393,7 @@ ggplot(para_five_df, aes(x = 1:11)) +
   geom_line(aes(y = DXY_sel_para_five), color = 'light gray', linetype = 3) +
   scale_x_continuous(breaks = 1:11, labels = Bins_Five) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-  labs(title = 'Select Patameters Over Five Year Bins') +
+  labs(title = 'Select Parameters Over Five Year Bins') +
   xlab('Bins') +
   ylab('Parameter Values')
 
@@ -1432,7 +1432,7 @@ ggplot(para_ten_df, aes(x = 1:6)) +
   geom_line(aes(y = DXY_sel_para_ten), color = 'light gray', linetype = 3) +
   scale_x_continuous(breaks = 1:6, labels = Bins_Ten) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-  labs(title = 'Select Patameters Over Ten Year Bins') +
+  ggtitle('Select Parameters Over Ten Year Bins') +
   xlab('Bins') +
   ylab('Parameter Values')
 
