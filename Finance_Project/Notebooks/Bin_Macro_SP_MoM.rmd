@@ -1,0 +1,1650 @@
+# The below script takes the Month over Month dataset and bins the data into 
+# five-year and ten-year to fit and test linear regression models over shorter
+# time frames. Plots are generated of the change in parameter values across
+# the binned models. Complete analysis of this work is in the Final Report.
+
+# Importing libraries for analysis
+library(ggplot2)
+library(caret)
+
+# Working directory must be set to Team-011 repository
+# Import data as dataframe
+r <- getwd()
+filepath <- paste(r, '/Deliverables/Phase 4/Final Data Source/Macro_SP_MoM.csv', sep = '')
+Macro_SP_MoM <- read.csv(filepath)
+
+# Create columns to identify bins 1-11
+
+# Scalp date column to produce vector for Years in date column
+Years <- Macro_SP_MoM$date
+for (i in 1:length(Years)) {
+  Years[i] = substr(Years[i], 1, 4)
+}
+Years <- as.integer(Years)
+
+# Create bin vectors full of zeroes for both five and ten year bins. These are 
+# the same length of Years.
+bin_five_01 <- integer(length(Years))
+bin_five_02 <- integer(length(Years))
+bin_five_03 <- integer(length(Years))
+bin_five_04 <- integer(length(Years))
+bin_five_05 <- integer(length(Years))
+bin_five_06 <- integer(length(Years))
+bin_five_07 <- integer(length(Years))
+bin_five_08 <- integer(length(Years))
+bin_five_09 <- integer(length(Years))
+bin_five_10 <- integer(length(Years))
+bin_five_11 <- integer(length(Years))
+
+bin_ten_01 <- integer(length(Years))
+bin_ten_02 <- integer(length(Years))
+bin_ten_03 <- integer(length(Years))
+bin_ten_04 <- integer(length(Years))
+bin_ten_05 <- integer(length(Years))
+bin_ten_06 <- integer(length(Years))
+
+# Fill each vector with boolean values.
+for (i in 1:length(Years)) {
+  if (Years[i] %in% c(1967, 1968, 1969, 1970, 1971)) {
+   bin_five_01[i] = TRUE
+   bin_ten_01[i] = TRUE
+  } else if (Years[i] %in% c(1972, 1973, 1974, 1975, 1976)) {
+    bin_five_02[i] = TRUE
+    bin_ten_01[i] = TRUE
+  } else if (Years[i] %in% c(1977, 1978, 1979, 1980, 1981)) {
+    bin_five_03[i] = TRUE
+    bin_ten_02[i] = TRUE
+  } else if (Years[i] %in% c(1982, 1983, 1984, 1985, 1986)) {
+    bin_five_04[i] = TRUE
+    bin_ten_02[i] = TRUE
+  } else if (Years[i] %in% c(1987, 1988, 1989, 1990, 1991)) {
+    bin_five_05[i] = TRUE
+    bin_ten_03[i] = TRUE
+  } else if (Years[i] %in% c(1992, 1993, 1994, 1995, 1996)) {
+    bin_five_06[i] = TRUE
+    bin_ten_03[i] = TRUE
+  } else if (Years[i] %in% c(1997, 1998, 1999, 2000, 2001)) {
+    bin_five_07[i] = TRUE
+    bin_ten_04[i] = TRUE
+  } else if (Years[i] %in% c(2002, 2003, 2004, 2005, 2006)) {
+    bin_five_08[i] = TRUE
+    bin_ten_04[i] = TRUE
+  } else if (Years[i] %in% c(2007, 2008, 2009, 2010, 2011)) {
+    bin_five_09[i] = TRUE
+    bin_ten_05[i] = TRUE
+  } else if (Years[i] %in% c(2012, 2013, 2014, 2015, 2016)) {
+    bin_five_10[i] = TRUE
+    bin_ten_05[i] = TRUE
+  } else if (Years[i] %in% c(2017, 2018, 2019, 2020, 2021, 2022)) {
+    bin_five_11[i] = TRUE
+    bin_ten_06[i] = TRUE
+  }
+}
+
+# Create columns in dataframe for each bin vector
+Macro_SP_MoM$bin_five_01 <- bin_five_01
+Macro_SP_MoM$bin_five_02 <- bin_five_02
+Macro_SP_MoM$bin_five_03 <- bin_five_03
+Macro_SP_MoM$bin_five_04 <- bin_five_04
+Macro_SP_MoM$bin_five_05 <- bin_five_05
+Macro_SP_MoM$bin_five_06 <- bin_five_06
+Macro_SP_MoM$bin_five_07 <- bin_five_07
+Macro_SP_MoM$bin_five_08 <- bin_five_08
+Macro_SP_MoM$bin_five_09 <- bin_five_09
+Macro_SP_MoM$bin_five_10 <- bin_five_10
+Macro_SP_MoM$bin_five_11 <- bin_five_11
+Macro_SP_MoM$bin_ten_01 <- bin_ten_01
+Macro_SP_MoM$bin_ten_02 <- bin_ten_02
+Macro_SP_MoM$bin_ten_03 <- bin_ten_03
+Macro_SP_MoM$bin_ten_04 <- bin_ten_04
+Macro_SP_MoM$bin_ten_05 <- bin_ten_05
+Macro_SP_MoM$bin_ten_06 <- bin_ten_06
+
+# Create a new dataframe for each bin
+Macro_SP_MoM_bin_five_01 <- Macro_SP_MoM[Macro_SP_MoM$bin_five_01 == TRUE, ]
+Macro_SP_MoM_bin_five_02 <- Macro_SP_MoM[Macro_SP_MoM$bin_five_02 == TRUE, ]
+Macro_SP_MoM_bin_five_03 <- Macro_SP_MoM[Macro_SP_MoM$bin_five_03 == TRUE, ]
+Macro_SP_MoM_bin_five_04 <- Macro_SP_MoM[Macro_SP_MoM$bin_five_04 == TRUE, ]
+Macro_SP_MoM_bin_five_05 <- Macro_SP_MoM[Macro_SP_MoM$bin_five_05 == TRUE, ]
+Macro_SP_MoM_bin_five_06 <- Macro_SP_MoM[Macro_SP_MoM$bin_five_06 == TRUE, ]
+Macro_SP_MoM_bin_five_07 <- Macro_SP_MoM[Macro_SP_MoM$bin_five_07 == TRUE, ]
+Macro_SP_MoM_bin_five_08 <- Macro_SP_MoM[Macro_SP_MoM$bin_five_08 == TRUE, ]
+Macro_SP_MoM_bin_five_09 <- Macro_SP_MoM[Macro_SP_MoM$bin_five_09 == TRUE, ]
+Macro_SP_MoM_bin_five_10 <- Macro_SP_MoM[Macro_SP_MoM$bin_five_10 == TRUE, ]
+Macro_SP_MoM_bin_five_11 <- Macro_SP_MoM[Macro_SP_MoM$bin_five_11 == TRUE, ]
+Macro_SP_MoM_bin_ten_01 <- Macro_SP_MoM[Macro_SP_MoM$bin_ten_01 == TRUE, ]
+Macro_SP_MoM_bin_ten_02 <- Macro_SP_MoM[Macro_SP_MoM$bin_ten_02 == TRUE, ]
+Macro_SP_MoM_bin_ten_03 <- Macro_SP_MoM[Macro_SP_MoM$bin_ten_03 == TRUE, ]
+Macro_SP_MoM_bin_ten_04 <- Macro_SP_MoM[Macro_SP_MoM$bin_ten_04 == TRUE, ]
+Macro_SP_MoM_bin_ten_05 <- Macro_SP_MoM[Macro_SP_MoM$bin_ten_05 == TRUE, ]
+Macro_SP_MoM_bin_ten_06 <- Macro_SP_MoM[Macro_SP_MoM$bin_ten_06 == TRUE, ]
+
+# Remove date column and bin columns from each dataframe
+
+# keep vector is all columns to keep in dataframes
+keep = c('PPIACO', 'INDPRO', 'PAYEMS', 'WTISPLC', 'GDP', 'CPIAUCSL', 
+         'BOGZ1FA895050005Q', 'GDPC1', 'UNRATE', 'PRS85006023', 'UMCSENT', 
+         'DFF', 'CPILFESL', 'DSPIC96', 'PCE', 'PERMIT', 'W068RCQ027SBEA', 
+         'DGS10', 'GFDEBTN', 'ICSA', 'DXY', 'SP500')
+
+# Parses each dataframe to only select relevant columns
+Macro_SP_MoM_bin_five_01 <- Macro_SP_MoM_bin_five_01[, keep]
+Macro_SP_MoM_bin_five_02 <- Macro_SP_MoM_bin_five_02[, keep]
+Macro_SP_MoM_bin_five_03 <- Macro_SP_MoM_bin_five_03[, keep]
+Macro_SP_MoM_bin_five_04 <- Macro_SP_MoM_bin_five_04[, keep]
+Macro_SP_MoM_bin_five_05 <- Macro_SP_MoM_bin_five_05[, keep]
+Macro_SP_MoM_bin_five_06 <- Macro_SP_MoM_bin_five_06[, keep]
+Macro_SP_MoM_bin_five_07 <- Macro_SP_MoM_bin_five_07[, keep]
+Macro_SP_MoM_bin_five_08 <- Macro_SP_MoM_bin_five_08[, keep]
+Macro_SP_MoM_bin_five_09 <- Macro_SP_MoM_bin_five_09[, keep]
+Macro_SP_MoM_bin_five_10 <- Macro_SP_MoM_bin_five_10[, keep]
+Macro_SP_MoM_bin_five_11 <- Macro_SP_MoM_bin_five_11[, keep]
+Macro_SP_MoM_bin_ten_01 <- Macro_SP_MoM_bin_ten_01[, keep]
+Macro_SP_MoM_bin_ten_02 <- Macro_SP_MoM_bin_ten_02[, keep]
+Macro_SP_MoM_bin_ten_03 <- Macro_SP_MoM_bin_ten_03[, keep]
+Macro_SP_MoM_bin_ten_04 <- Macro_SP_MoM_bin_ten_04[, keep]
+Macro_SP_MoM_bin_ten_05 <- Macro_SP_MoM_bin_ten_05[, keep]
+Macro_SP_MoM_bin_ten_06 <- Macro_SP_MoM_bin_ten_06[, keep]
+
+# Create linear regression models for each of the bins
+bin_five_01_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_five_01)
+bin_five_02_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_five_02)
+bin_five_03_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_five_03)
+bin_five_04_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_five_04)
+bin_five_05_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_five_05)
+bin_five_06_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_five_06)
+bin_five_07_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_five_07)
+bin_five_08_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_five_08)
+bin_five_09_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_five_09)
+bin_five_10_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_five_10)
+bin_five_11_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_five_11)
+bin_ten_01_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_ten_01)
+bin_ten_02_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_ten_02)
+bin_ten_03_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_ten_03)
+bin_ten_04_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_ten_04)
+bin_ten_05_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_ten_05)
+bin_ten_06_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_ten_06)
+
+# Collecting p-values from each of the models
+bin_five_01_pval <- summary(bin_five_01_model)$coefficients[, 4]
+bin_five_02_pval <- summary(bin_five_02_model)$coefficients[, 4]
+bin_five_03_pval <- summary(bin_five_03_model)$coefficients[, 4]
+bin_five_04_pval <- summary(bin_five_04_model)$coefficients[, 4]
+bin_five_05_pval <- summary(bin_five_05_model)$coefficients[, 4]
+bin_five_06_pval <- summary(bin_five_06_model)$coefficients[, 4]
+bin_five_07_pval <- summary(bin_five_07_model)$coefficients[, 4]
+bin_five_08_pval <- summary(bin_five_08_model)$coefficients[, 4]
+bin_five_09_pval <- summary(bin_five_09_model)$coefficients[, 4]
+bin_five_10_pval <- summary(bin_five_10_model)$coefficients[, 4]
+bin_five_11_pval <- summary(bin_five_11_model)$coefficients[, 4]
+bin_ten_01_pval <- summary(bin_ten_01_model)$coefficients[, 4]
+bin_ten_02_pval <- summary(bin_ten_02_model)$coefficients[, 4]
+bin_ten_03_pval <- summary(bin_ten_03_model)$coefficients[, 4]
+bin_ten_04_pval <- summary(bin_ten_04_model)$coefficients[, 4]
+bin_ten_05_pval <- summary(bin_ten_05_model)$coefficients[, 4]
+bin_ten_06_pval <- summary(bin_ten_06_model)$coefficients[, 4]
+
+# Initialize column vectors for each of the parameters for both five and ten 
+# year bins.
+Intercept_five <- integer(11)
+PPIACO_five <- integer(11)
+INDPRO_five <- integer(11)
+PAYEMS_five <- integer(11)
+WTISPLC_five <- integer(11)
+GDP_five <- integer(11)
+CPIAUCSL_five <- integer(11)
+BOGZ1FA895050005Q_five <- integer(11)
+GDPC1_five <- integer(11)
+UNRATE_five <- integer(11)
+PRS85006023_five <- integer(11)
+UMCSENT_five <- integer(11)
+DFF_five <- integer(11)
+CPILFESL_five <- integer(11)
+DSPIC96_five <- integer(11)
+PCE_five <- integer(11)
+PERMIT_five <- integer(11)
+W068RCQ027SBEA_five <- integer(11)
+DGS10_five <- integer(11)
+GFDEBTN_five <- integer(11)
+ICSA_five <- integer(11)
+DXY_five <- integer(11)
+Intercept_ten <- integer(11)
+PPIACO_ten <- integer(11)
+INDPRO_ten <- integer(11)
+PAYEMS_ten <- integer(11)
+WTISPLC_ten <- integer(11)
+GDP_ten <- integer(11)
+CPIAUCSL_ten <- integer(11)
+BOGZ1FA895050005Q_ten <- integer(11)
+GDPC1_ten <- integer(11)
+UNRATE_ten <- integer(11)
+PRS85006023_ten <- integer(11)
+UMCSENT_ten <- integer(11)
+DFF_ten <- integer(11)
+CPILFESL_ten <- integer(11)
+DSPIC96_ten <- integer(11)
+PCE_ten <- integer(11)
+PERMIT_ten <- integer(11)
+W068RCQ027SBEA_ten <- integer(11)
+DGS10_ten <- integer(11)
+GFDEBTN_ten <- integer(11)
+ICSA_ten <- integer(11)
+DXY_ten <- integer(11)
+
+# Create p-value dataframe for five year bin models
+pval_five_df <- data.frame(bin_five_01_pval, bin_five_02_pval, bin_five_03_pval, 
+                           bin_five_04_pval, bin_five_05_pval, bin_five_06_pval, 
+                           bin_five_07_pval, bin_five_08_pval, bin_five_09_pval, 
+                           bin_five_10_pval, bin_five_11_pval)
+head(pval_five_df)
+
+##             bin_five_01_pval bin_five_02_pval bin_five_03_pval bin_five_04_pval bin_five_05_pval bin_five_06_pval bin_five_07_pval bin_five_08_pval
+## (Intercept)        0.2317787       0.05467542        0.9495781        0.4903026        0.7646795        0.6622196       0.04372999       0.87773080
+## PPIACO             0.7347002       0.94274377        0.6199243        0.7888106        0.8836520        0.9127578       0.17863571       0.59090386
+## INDPRO             0.7001888       0.27882337        0.4878140        0.3754326        0.2597893        0.9398256       0.12881206       0.97197161
+## PAYEMS             0.3416933       0.58426128        0.4619664        0.8708108        0.7970022        0.1007769       0.04249962       0.00385314
+## WTISPLC            0.3097541       0.02739051        0.7742983        0.1129570        0.8878639        0.8205613       0.66633158       0.13837571
+## GDP                0.8745465       0.62827769        0.5673197        0.4038954        0.4613805        0.1840773       0.12030096       0.25161633
+##             bin_five_09_pval bin_five_10_pval bin_five_11_pval
+## (Intercept)        0.4376268       0.83749771        0.0457779
+## PPIACO             0.5599589       0.70158242        0.7380900
+## INDPRO             0.6276019       0.85950977        0.3110342
+## PAYEMS             0.9203397       0.00252394        0.1764156
+## WTISPLC            0.8839224       0.24815908        0.1477548
+## GDP                0.5590831       0.19959083        0.7802959
+
+# Create p-value dataframe for ten year bin models
+pval_ten_df <- data.frame(bin_ten_01_pval, bin_ten_02_pval, bin_ten_03_pval, 
+                           bin_ten_04_pval, bin_ten_05_pval, bin_ten_06_pval)
+
+# Fill the columns vectors from the five year bins dataframe
+for (i in 1:11) {
+  Intercept_five[i] = pval_five_df[1, i]
+  PPIACO_five[i] = pval_five_df[2, i]
+  INDPRO_five[i] = pval_five_df[3, i]
+  PAYEMS_five[i] = pval_five_df[4, i]
+  WTISPLC_five[i] = pval_five_df[5, i]
+  GDP_five[i] = pval_five_df[6, i]
+  CPIAUCSL_five[i] = pval_five_df[7, i]
+  BOGZ1FA895050005Q_five[i] = pval_five_df[8, i]
+  GDPC1_five[i] = pval_five_df[9, i]
+  UNRATE_five[i] = pval_five_df[10, i]
+  PRS85006023_five[i] = pval_five_df[11, i]
+  UMCSENT_five[i] = pval_five_df[12, i]
+  DFF_five[i] = pval_five_df[13, i]
+  CPILFESL_five[i] = pval_five_df[14, i]
+  DSPIC96_five[i] = pval_five_df[15, i]
+  PCE_five[i] = pval_five_df[16, i]
+  PERMIT_five[i] = pval_five_df[17, i]
+  W068RCQ027SBEA_five[i] = pval_five_df[18, i]
+  DGS10_five[i] = pval_five_df[19, i]
+  GFDEBTN_five[i] = pval_five_df[20, i]
+  ICSA_five[i] = pval_five_df[21, i]
+  DXY_five[i] = pval_five_df[22, i]
+}
+
+# Fill the column vectors from the ten year bins dataframe
+for (i in 1:6) {
+  Intercept_ten[i] = pval_ten_df[1, i]
+  PPIACO_ten[i] = pval_ten_df[2, i]
+  INDPRO_ten[i] = pval_ten_df[3, i]
+  PAYEMS_ten[i] = pval_ten_df[4, i]
+  WTISPLC_ten[i] = pval_ten_df[5, i]
+  GDP_ten[i] = pval_ten_df[6, i]
+  CPIAUCSL_ten[i] = pval_ten_df[7, i]
+  BOGZ1FA895050005Q_ten[i] = pval_ten_df[8, i]
+  GDPC1_ten[i] = pval_ten_df[9, i]
+  UNRATE_ten[i] = pval_ten_df[10, i]
+  PRS85006023_ten[i] = pval_ten_df[11, i]
+  UMCSENT_ten[i] = pval_ten_df[12, i]
+  DFF_ten[i] = pval_ten_df[13, i]
+  CPILFESL_ten[i] = pval_ten_df[14, i]
+  DSPIC96_ten[i] = pval_ten_df[15, i]
+  PCE_ten[i] = pval_ten_df[16, i]
+  PERMIT_ten[i] = pval_ten_df[17, i]
+  W068RCQ027SBEA_ten[i] = pval_ten_df[18, i]
+  DGS10_ten[i] = pval_ten_df[19, i]
+  GFDEBTN_ten[i] = pval_ten_df[20, i]
+  ICSA_ten[i] = pval_ten_df[21, i]
+  DXY_ten[i] = pval_ten_df[22, i]
+}
+
+# Create a column vector to name the bins in the plot
+Bins <- c('1967-1971', '1972-1976', '1977-1981', '1982-1986', '1987-1991', 
+          '1992-1996', '1997-2001', '2002-2006', '2007-2011', '2012-2016', 
+          '2017-2022')
+
+# Group the columns vectors into a dataframe for the five year bins.
+para_pval_five_df <- data.frame(Bins, Intercept_five, PPIACO_five, INDPRO_five, 
+                                PAYEMS_five, WTISPLC_five, GDP_five, 
+                                CPIAUCSL_five, BOGZ1FA895050005Q_five, 
+                                GDPC1_five, UNRATE_five, PRS85006023_five, 
+                                UMCSENT_five, DFF_five, CPILFESL_five, 
+                                DSPIC96_five, PCE_five, PERMIT_five, 
+                                W068RCQ027SBEA_five, DGS10_five, GFDEBTN_five, 
+                                ICSA_five, DXY_five)
+head(para_pval_five_df)
+
+##        Bins Intercept_five PPIACO_five INDPRO_five PAYEMS_five WTISPLC_five  GDP_five CPIAUCSL_five BOGZ1FA895050005Q_five GDPC1_five UNRATE_five
+## 1 1967-1971     0.23177867   0.7347002   0.7001888   0.3416933   0.30975413 0.8745465     0.4089333            0.521750369 0.51190333  0.29995085
+## 2 1972-1976     0.05467542   0.9427438   0.2788234   0.5842613   0.02739051 0.6282777     0.1494447            0.359364635 0.11957747  0.05909302
+## 3 1977-1981     0.94957812   0.6199243   0.4878140   0.4619664   0.77429828 0.5673197     0.4236575            0.576756129 0.94184941  0.74877584
+## 4 1982-1986     0.49030260   0.7888106   0.3754326   0.8708108   0.11295702 0.4038954     0.2548379            0.493017457 0.24187162  0.35283806
+## 5 1987-1991     0.76467947   0.8836520   0.2597893   0.7970022   0.88786391 0.4613805     0.4271457            0.162274042 0.89253996  0.13561661
+## 6 1992-1996     0.66221955   0.9127578   0.9398256   0.1007769   0.82056127 0.1840773     0.5913163            0.001819568 0.01915431  0.75456689
+##   PRS85006023_five UMCSENT_five   DFF_five CPILFESL_five DSPIC96_five  PCE_five PERMIT_five W068RCQ027SBEA_five   DGS10_five GFDEBTN_five ICSA_five
+## 1       0.84546696  0.871528365 0.19893852     0.6784601    0.6201102 0.9936812   0.3311396           0.2338256 0.1538296789    0.2892104 0.8964609
+## 2       0.90487741  0.603417478 0.08261052     0.7211019    0.6401568 0.7372417   0.7858121           0.8360542 0.1141704865    0.1540770 0.0114279
+## 3       0.31100269  0.021761435 0.54573609     0.3841020    0.2083072 0.3327564   0.9505899           0.8885192 0.4277547548    0.4539733 0.9489864
+## 4       0.02681538  0.005245969 0.05391097     0.7633508    0.6500400 0.2164243   0.4701875           0.9733132 0.0000657469    0.5447086 0.3261505
+## 5       0.08892655  0.413255490 0.48890327     0.5447982    0.7505806 0.2779559   0.4604768           0.5470712 0.9934641141    0.2758778 0.8434318
+## 6       0.65969677  0.784501224 0.23435315     0.1760135    0.4388730 0.6088156   0.3071567           0.8436071 0.0018857619    0.7487280 0.1327370
+##     DXY_five
+## 1 0.97994122
+## 2 0.03770405
+## 3 0.28766759
+## 4 0.61975902
+## 5 0.24278963
+## 6 0.17016132
+
+summary(para_pval_five_df)
+
+##      Bins           Intercept_five     PPIACO_five      INDPRO_five      PAYEMS_five        WTISPLC_five        GDP_five      CPIAUCSL_five   
+##  Length:11          Min.   :0.04373   Min.   :0.1786   Min.   :0.1288   Min.   :0.002524   Min.   :0.02739   Min.   :0.1203   Min.   :0.1494  
+##  Class :character   1st Qu.:0.14323   1st Qu.:0.6054   1st Qu.:0.2949   1st Qu.:0.071638   1st Qu.:0.14307   1st Qu.:0.2256   1st Qu.:0.4066  
+##  Mode  :character   Median :0.49030   Median :0.7347   Median :0.4878   Median :0.341693   Median :0.30975   Median :0.4614   Median :0.4271  
+##                     Mean   :0.49051   Mean   :0.6956   Mean   :0.5401   Mean   :0.391104   Mean   :0.45612   Mean   :0.4573   Mean   :0.5047  
+##                     3rd Qu.:0.80109   3rd Qu.:0.8362   3rd Qu.:0.7798   3rd Qu.:0.690632   3rd Qu.:0.79743   3rd Qu.:0.5978   3rd Qu.:0.6033  
+##                     Max.   :0.94958   Max.   :0.9427   Max.   :0.9720   Max.   :0.920340   Max.   :0.88786   Max.   :0.8745   Max.   :0.9900  
+##  BOGZ1FA895050005Q_five   GDPC1_five       UNRATE_five      PRS85006023_five   UMCSENT_five         DFF_five       CPILFESL_five   
+##  Min.   :0.00182        Min.   :0.01915   Min.   :0.05909   Min.   :0.02682   Min.   :0.003849   Min.   :0.04771   Min.   :0.1237  
+##  1st Qu.:0.23945        1st Qu.:0.15608   1st Qu.:0.13505   1st Qu.:0.28170   1st Qu.:0.013504   1st Qu.:0.14077   1st Qu.:0.2918  
+##  Median :0.49302        Median :0.44913   Median :0.35284   Median :0.65970   Median :0.242362   Median :0.36809   Median :0.3841  
+##  Mean   :0.41605        Mean   :0.43270   Mean   :0.41443   Mean   :0.55929   Mean   :0.326543   Mean   :0.33043   Mean   :0.4611  
+##  3rd Qu.:0.55742        3rd Qu.:0.67875   3rd Qu.:0.71168   3rd Qu.:0.85276   3rd Qu.:0.602980   3rd Qu.:0.51732   3rd Qu.:0.6998  
+##  Max.   :0.86193        Max.   :0.94185   Max.   :0.84830   Max.   :0.93942   Max.   :0.871528   Max.   :0.58950   Max.   :0.7634  
+##   DSPIC96_five       PCE_five        PERMIT_five     W068RCQ027SBEA_five   DGS10_five         GFDEBTN_five      ICSA_five           DXY_five     
+##  Min.   :0.1303   Min.   :0.03094   Min.   :0.2125   Min.   :0.08531     Min.   :0.0000657   Min.   :0.1541   Min.   :0.001985   Min.   :0.0377  
+##  1st Qu.:0.2370   1st Qu.:0.24719   1st Qu.:0.3299   1st Qu.:0.39045     1st Qu.:0.0667363   1st Qu.:0.3357   1st Qu.:0.218004   1st Qu.:0.1216  
+##  Median :0.6065   Median :0.42722   Median :0.4702   Median :0.83605     Median :0.4087199   Median :0.4540   Median :0.421371   Median :0.2428  
+##  Mean   :0.4703   Mean   :0.46037   Mean   :0.5377   Mean   :0.62822     Mean   :0.3856726   Mean   :0.4761   Mean   :0.529385   Mean   :0.3024  
+##  3rd Qu.:0.6451   3rd Qu.:0.67303   3rd Qu.:0.6851   3rd Qu.:0.86606     3rd Qu.:0.6408249   3rd Qu.:0.6109   3rd Qu.:0.922724   3rd Qu.:0.3492  
+##  Max.   :0.7506   Max.   :0.99368   Max.   :0.9506   Max.   :0.97331     Max.   :0.9934641   Max.   :0.8121   Max.   :0.970424   Max.   :0.9799
+
+# Group the columns vectors into a dataframe for the ten year bins.
+para_pval_ten_df <- data.frame(Bins, Intercept_ten, PPIACO_ten, INDPRO_ten, 
+                               PAYEMS_ten, WTISPLC_ten, GDP_ten, CPIAUCSL_ten, 
+                               BOGZ1FA895050005Q_ten, GDPC1_ten, UNRATE_ten, 
+                               PRS85006023_ten, UMCSENT_ten, DFF_ten, 
+                               CPILFESL_ten, DSPIC96_ten, PCE_ten, PERMIT_ten, 
+                               W068RCQ027SBEA_ten, DGS10_ten, GFDEBTN_ten, 
+                               ICSA_ten, DXY_ten)
+head(para_pval_ten_df)
+
+##        Bins Intercept_ten PPIACO_ten INDPRO_ten PAYEMS_ten WTISPLC_ten   GDP_ten CPIAUCSL_ten BOGZ1FA895050005Q_ten   GDPC1_ten UNRATE_ten
+## 1 1967-1971    0.25916635  0.1500106  0.1308043 0.45467854  0.02525267 0.3338454    0.2755429             0.9198647 0.312162907 0.03512408
+## 2 1972-1976    0.31890043  0.2341293  0.8262475 0.56654846  0.51376484 0.6794288    0.3994093             0.1057774 0.396205467 0.86227731
+## 3 1977-1981    0.28019503  0.8906221  0.3148678 0.91389278  0.56268345 0.6123119    0.2277748             0.0237110 0.700310109 0.25331473
+## 4 1982-1986    0.46962262  0.2366227  0.1377341 0.01277283  0.31415307 0.2498157    0.9308934             0.9517149 0.331620269 0.17958668
+## 5 1987-1991    0.08509754  0.8143110  0.9926671 0.20639996  0.16337813 0.7747667    0.8584683             0.1860650 0.009076904 0.12984977
+## 6 1992-1996    0.04577790  0.7380900  0.3110342 0.17641562  0.14775482 0.7802959    0.6075249             0.5380820 0.449130483 0.42191107
+##   PRS85006023_ten  UMCSENT_ten    DFF_ten CPILFESL_ten DSPIC96_ten    PCE_ten PERMIT_ten W068RCQ027SBEA_ten    DGS10_ten GFDEBTN_ten    ICSA_ten
+## 1      0.88495171 4.013694e-01 0.04015144   0.88479078   0.7524124 0.49805283  0.7517944          0.1318002 7.135901e-02  0.59988383 0.188499073
+## 2      0.05734499 1.596049e-05 0.50809175   0.77800323   0.8803056 0.16465220  0.6643382          0.6791686 5.803318e-05  0.71179384 0.985535729
+## 3      0.35522154 3.820559e-02 0.48412549   0.35763170   0.9089596 0.27029144  0.4970474          0.1827398 2.393121e-02  0.09166813 0.594149426
+## 4      0.93560418 6.203560e-05 0.12909825   0.77056466   0.9428366 0.05912259  0.8428848          0.3858169 3.371964e-01  0.76200348 0.844547238
+## 5      0.33833307 1.918179e-04 0.24059080   0.01455208   0.2544198 0.13572349  0.9174198          0.3703782 2.578229e-03  0.31089070 0.018365664
+## 6      0.93941625 6.025421e-01 0.36809079   0.74681389   0.2657266 0.79675289  0.9396544          0.5787552 8.255076e-01  0.67711190 0.001985117
+##      DXY_ten
+## 1 0.01010045
+## 2 0.36512498
+## 3 0.16687109
+## 4 0.51546031
+## 5 0.10900181
+## 6 0.34512038
+
+summary(para_pval_ten_df)
+
+##      Bins           Intercept_ten       PPIACO_ten       INDPRO_ten       PAYEMS_ten       WTISPLC_ten         GDP_ten        CPIAUCSL_ten   
+##  Length:11          Min.   :0.00000   Min.   :0.0000   Min.   :0.0000   Min.   :0.00000   Min.   :0.00000   Min.   :0.0000   Min.   :0.0000  
+##  Class :character   1st Qu.:0.00000   1st Qu.:0.0000   1st Qu.:0.0000   1st Qu.:0.00000   1st Qu.:0.00000   1st Qu.:0.0000   1st Qu.:0.0000  
+##  Mode  :character   Median :0.04578   Median :0.1500   Median :0.1308   Median :0.01277   Median :0.02525   Median :0.2498   Median :0.2278  
+##                     Mean   :0.13261   Mean   :0.2785   Mean   :0.2467   Mean   :0.21188   Mean   :0.15700   Mean   :0.3119   Mean   :0.3000  
+##                     3rd Qu.:0.26968   3rd Qu.:0.4874   3rd Qu.:0.3130   3rd Qu.:0.33054   3rd Qu.:0.23877   3rd Qu.:0.6459   3rd Qu.:0.5035  
+##                     Max.   :0.46962   Max.   :0.8906   Max.   :0.9927   Max.   :0.91389   Max.   :0.56268   Max.   :0.7803   Max.   :0.9309  
+##  BOGZ1FA895050005Q_ten   GDPC1_ten          UNRATE_ten      PRS85006023_ten    UMCSENT_ten          DFF_ten         CPILFESL_ten    
+##  Min.   :0.00000       Min.   :0.000000   Min.   :0.00000   Min.   :0.00000   Min.   :0.000000   Min.   :0.00000   Min.   :0.00000  
+##  1st Qu.:0.00000       1st Qu.:0.000000   1st Qu.:0.00000   1st Qu.:0.00000   1st Qu.:0.000000   1st Qu.:0.00000   1st Qu.:0.00000  
+##  Median :0.02371       Median :0.009077   Median :0.03512   Median :0.05735   Median :0.000016   Median :0.04015   Median :0.01455  
+##  Mean   :0.24775       Mean   :0.199864   Mean   :0.17110   Mean   :0.31917   Mean   :0.094762   Mean   :0.16092   Mean   :0.32294  
+##  3rd Qu.:0.36207       3rd Qu.:0.363913   3rd Qu.:0.21645   3rd Qu.:0.62009   3rd Qu.:0.019199   3rd Qu.:0.30434   3rd Qu.:0.75869  
+##  Max.   :0.95171       Max.   :0.700310   Max.   :0.86228   Max.   :0.93942   Max.   :0.602542   Max.   :0.50809   Max.   :0.88479  
+##   DSPIC96_ten        PCE_ten          PERMIT_ten     W068RCQ027SBEA_ten   DGS10_ten         GFDEBTN_ten         ICSA_ten           DXY_ten      
+##  Min.   :0.0000   Min.   :0.00000   Min.   :0.0000   Min.   :0.0000     Min.   :0.000000   Min.   :0.00000   Min.   :0.000000   Min.   :0.0000  
+##  1st Qu.:0.0000   1st Qu.:0.00000   1st Qu.:0.0000   1st Qu.:0.0000     1st Qu.:0.000000   1st Qu.:0.00000   1st Qu.:0.000000   1st Qu.:0.0000  
+##  Median :0.2544   Median :0.05912   Median :0.4970   Median :0.1318     Median :0.000058   Median :0.09167   Median :0.001985   Median :0.0101  
+##  Mean   :0.3641   Mean   :0.17496   Mean   :0.4194   Mean   :0.2117     Mean   :0.114603   Mean   :0.28667   Mean   :0.239371   Mean   :0.1374  
+##  3rd Qu.:0.8164   3rd Qu.:0.21747   3rd Qu.:0.7973   3rd Qu.:0.3781     3rd Qu.:0.047645   3rd Qu.:0.63850   3rd Qu.:0.391324   3rd Qu.:0.2560  
+##  Max.   :0.9428   Max.   :0.79675   Max.   :0.9397   Max.   :0.6792     Max.   :0.825508   Max.   :0.76200   Max.   :0.985536   Max.   :0.5155
+
+# Looking at the summary of the p-values for each of the predictors. Most of the
+# predictors are significant in at least one of the 5-year subset models, but
+# none are significant in all of the models. The predictors with the lowest 
+# average p-value across the bins are DFF, DGS10, DXY, PAYEMS, UMCSENT.
+
+# Plotting the coefficients across the bins for a visual aide.
+
+# Collecting the coefficients from each of the models for plotting
+bin_five_01_coeff <- summary(bin_five_01_model)$coefficients[, 1]
+bin_five_02_coeff <- summary(bin_five_02_model)$coefficients[, 1]
+bin_five_03_coeff <- summary(bin_five_03_model)$coefficients[, 1]
+bin_five_04_coeff <- summary(bin_five_04_model)$coefficients[, 1]
+bin_five_05_coeff <- summary(bin_five_05_model)$coefficients[, 1]
+bin_five_06_coeff <- summary(bin_five_06_model)$coefficients[, 1]
+bin_five_07_coeff <- summary(bin_five_07_model)$coefficients[, 1]
+bin_five_08_coeff <- summary(bin_five_08_model)$coefficients[, 1]
+bin_five_09_coeff <- summary(bin_five_09_model)$coefficients[, 1]
+bin_five_10_coeff <- summary(bin_five_10_model)$coefficients[, 1]
+bin_five_11_coeff <- summary(bin_five_11_model)$coefficients[, 1]
+bin_ten_01_coeff <- summary(bin_ten_01_model)$coefficients[, 1]
+bin_ten_02_coeff <- summary(bin_ten_02_model)$coefficients[, 1]
+bin_ten_03_coeff <- summary(bin_ten_03_model)$coefficients[, 1]
+bin_ten_04_coeff <- summary(bin_ten_04_model)$coefficients[, 1]
+bin_ten_05_coeff <- summary(bin_ten_05_model)$coefficients[, 1]
+bin_ten_06_coeff <- summary(bin_ten_06_model)$coefficients[, 1]
+
+# Initialize column vectors for each of the parameters for both five and ten 
+# year bins.
+Intercept_five <- integer(11)
+PPIACO_five <- integer(11)
+INDPRO_five <- integer(11)
+PAYEMS_five <- integer(11)
+WTISPLC_five <- integer(11)
+GDP_five <- integer(11)
+CPIAUCSL_five <- integer(11)
+BOGZ1FA895050005Q_five <- integer(11)
+GDPC1_five <- integer(11)
+UNRATE_five <- integer(11)
+PRS85006023_five <- integer(11)
+UMCSENT_five <- integer(11)
+DFF_five <- integer(11)
+CPILFESL_five <- integer(11)
+DSPIC96_five <- integer(11)
+PCE_five <- integer(11)
+PERMIT_five <- integer(11)
+W068RCQ027SBEA_five <- integer(11)
+DGS10_five <- integer(11)
+GFDEBTN_five <- integer(11)
+ICSA_five <- integer(11)
+DXY_five <- integer(11)
+Intercept_ten <- integer(6)
+PPIACO_ten <- integer(6)
+INDPRO_ten <- integer(6)
+PAYEMS_ten <- integer(6)
+WTISPLC_ten <- integer(6)
+GDP_ten <- integer(6)
+CPIAUCSL_ten <- integer(6)
+BOGZ1FA895050005Q_ten <- integer(6)
+GDPC1_ten <- integer(6)
+UNRATE_ten <- integer(6)
+PRS85006023_ten <- integer(6)
+UMCSENT_ten <- integer(6)
+DFF_ten <- integer(6)
+CPILFESL_ten <- integer(6)
+DSPIC96_ten <- integer(6)
+PCE_ten <- integer(6)
+PERMIT_ten <- integer(6)
+W068RCQ027SBEA_ten <- integer(6)
+DGS10_ten <- integer(6)
+GFDEBTN_ten <- integer(6)
+ICSA_ten <- integer(6)
+DXY_ten <- integer(6)
+
+# Create p-value dataframe for five year bin models
+coeff_five_df <- data.frame(bin_five_01_coeff, bin_five_02_coeff, 
+                            bin_five_03_coeff, bin_five_04_coeff, 
+                            bin_five_05_coeff, bin_five_06_coeff, 
+                            bin_five_07_coeff, bin_five_08_coeff, 
+                            bin_five_09_coeff, bin_five_10_coeff, 
+                            bin_five_11_coeff)
+head(coeff_five_df)
+
+##             bin_five_01_coeff bin_five_02_coeff bin_five_03_coeff bin_five_04_coeff bin_five_05_coeff bin_five_06_coeff bin_five_07_coeff
+## (Intercept)        0.02111138        0.03652969      -0.001311767       0.008173499       0.008138332      -0.004924491       -0.04146970
+## PPIACO             0.52074435        0.04575323       0.633928727      -0.380588052      -0.267823725       0.107547135        1.63425711
+## INDPRO            -0.37167437       -1.18062556      -0.822737928      -0.722948316      -1.771730896      -0.051517547       -2.23281372
+## PAYEMS             2.74578842       -2.36706128      -2.428276657       0.318245698      -1.415243636       5.354073114       13.55796726
+## WTISPLC            0.45719345        0.08551888      -0.031817276       0.089928457      -0.012839697      -0.011707407        0.03573613
+## GDP               -0.37035820       -0.88493354       0.791857692      -2.261118000       3.426609498      -3.889591711       -9.45892783
+##             bin_five_08_coeff bin_five_09_coeff bin_five_10_coeff bin_five_11_coeff
+## (Intercept)       0.001798204       0.008986869      -0.003092098        0.01405304
+## PPIACO            0.363688695      -0.436544511       0.268722534       -0.26192678
+## INDPRO            0.037852973       0.339068634       0.134004544        0.60815486
+## PAYEMS           13.757070895      -0.363238316      19.418081773       -2.42042867
+## WTISPLC          -0.100243608      -0.011446965       0.065033380        0.08658798
+## GDP              -3.823887352      -1.805990663       2.670462194       -0.33570029
+
+# Create p-value dataframe for ten year bin models
+coeff_ten_df <- data.frame(bin_ten_01_coeff, bin_ten_02_coeff, bin_ten_03_coeff, 
+                           bin_ten_04_coeff, bin_ten_05_coeff, bin_ten_06_coeff)
+head(coeff_ten_df)
+
+##             bin_ten_01_coeff bin_ten_02_coeff bin_ten_03_coeff bin_ten_04_coeff bin_ten_05_coeff bin_ten_06_coeff
+## (Intercept)       0.01151184      0.008138574       0.01072072     -0.006428465       0.01305644       0.01405304
+## PPIACO           -0.64457335      0.894072273       0.12549461      0.623018597      -0.11050217      -0.26192678
+## INDPRO           -0.90142787     -0.124840651      -0.68674134     -1.179436711      -0.00424677       0.60815486
+## PAYEMS            1.56352471     -0.905110747      -0.29404277      7.721448234       2.62549745      -2.42042867
+## WTISPLC           0.07359354      0.028761748      -0.02848883     -0.048628859       0.06411343       0.08658798
+## GDP              -1.15723897      0.395365458       1.13417370     -3.034365643      -0.51001926      -0.33570029
+
+# Fill the columns vectors from the five year bins dataframe
+for (i in 1:11) {
+  Intercept_five[i] = coeff_five_df[1, i]
+  PPIACO_five[i] = coeff_five_df[2, i]
+  INDPRO_five[i] = coeff_five_df[3, i]
+  PAYEMS_five[i] = coeff_five_df[4, i]
+  WTISPLC_five[i] = coeff_five_df[5, i]
+  GDP_five[i] = coeff_five_df[6, i]
+  CPIAUCSL_five[i] = coeff_five_df[7, i]
+  BOGZ1FA895050005Q_five[i] = coeff_five_df[8, i]
+  GDPC1_five[i] = coeff_five_df[9, i]
+  UNRATE_five[i] = coeff_five_df[10, i]
+  PRS85006023_five[i] = coeff_five_df[11, i]
+  UMCSENT_five[i] = coeff_five_df[12, i]
+  DFF_five[i] = coeff_five_df[13, i]
+  CPILFESL_five[i] = coeff_five_df[14, i]
+  DSPIC96_five[i] = coeff_five_df[15, i]
+  PCE_five[i] = coeff_five_df[16, i]
+  PERMIT_five[i] = coeff_five_df[17, i]
+  W068RCQ027SBEA_five[i] = coeff_five_df[18, i]
+  DGS10_five[i] = coeff_five_df[19, i]
+  GFDEBTN_five[i] = coeff_five_df[20, i]
+  ICSA_five[i] = coeff_five_df[21, i]
+  DXY_five[i] = coeff_five_df[22, i]
+}
+
+# Fill the column vectors from the ten year bins dataframe
+for (i in 1:6) {
+  Intercept_ten[i] = coeff_ten_df[1, i]
+  PPIACO_ten[i] = coeff_ten_df[2, i]
+  INDPRO_ten[i] = coeff_ten_df[3, i]
+  PAYEMS_ten[i] = coeff_ten_df[4, i]
+  WTISPLC_ten[i] = coeff_ten_df[5, i]
+  GDP_ten[i] = coeff_ten_df[6, i]
+  CPIAUCSL_ten[i] = coeff_ten_df[7, i]
+  BOGZ1FA895050005Q_ten[i] = coeff_ten_df[8, i]
+  GDPC1_ten[i] = coeff_ten_df[9, i]
+  UNRATE_ten[i] = coeff_ten_df[10, i]
+  PRS85006023_ten[i] = coeff_ten_df[11, i]
+  UMCSENT_ten[i] = coeff_ten_df[12, i]
+  DFF_ten[i] = coeff_ten_df[13, i]
+  CPILFESL_ten[i] = coeff_ten_df[14, i]
+  DSPIC96_ten[i] = coeff_ten_df[15, i]
+  PCE_ten[i] = coeff_ten_df[16, i]
+  PERMIT_ten[i] = coeff_ten_df[17, i]
+  W068RCQ027SBEA_ten[i] = coeff_ten_df[18, i]
+  DGS10_ten[i] = coeff_ten_df[19, i]
+  GFDEBTN_ten[i] = coeff_ten_df[20, i]
+  ICSA_ten[i] = coeff_ten_df[21, i]
+  DXY_ten[i] = coeff_ten_df[22, i]
+}
+
+# Create a column vector to name the bins in the plot
+Bins_Five <- rep(c('1967-1971', '1972-1976', '1977-1981', '1982-1986', '1987-1991', 
+          '1992-1996', '1997-2001', '2002-2006', '2007-2011', '2012-2016', 
+          '2017-2022'))
+
+# Group the columns vectors into a dataframe for the five year bins.
+para_five_df <- data.frame(Bins_Five, Intercept_five, PPIACO_five, INDPRO_five, 
+                                PAYEMS_five, WTISPLC_five, GDP_five, 
+                                CPIAUCSL_five, BOGZ1FA895050005Q_five, 
+                                GDPC1_five, UNRATE_five, PRS85006023_five, 
+                                UMCSENT_five, DFF_five, CPILFESL_five, 
+                                DSPIC96_five, PCE_five, PERMIT_five, 
+                                W068RCQ027SBEA_five, DGS10_five, GFDEBTN_five, 
+                                ICSA_five, DXY_five)
+head(para_five_df)
+
+##   Bins_Five Intercept_five PPIACO_five INDPRO_five PAYEMS_five WTISPLC_five   GDP_five CPIAUCSL_five BOGZ1FA895050005Q_five GDPC1_five UNRATE_five
+## 1 1967-1971    0.021111380  0.52074435 -0.37167437   2.7457884   0.45719345 -0.3703582     -3.531077              0.5353438 -2.3220367 -0.18936950
+## 2 1972-1976    0.036529691  0.04575323 -1.18062556  -2.3670613   0.08551888 -0.8849335     -3.327939             -0.6842587  2.8416847 -0.38546733
+## 3 1977-1981   -0.001311767  0.63392873 -0.82273793  -2.4282767  -0.03181728  0.7918577      3.195869             -0.3160099 -0.1608647 -0.06289271
+## 4 1982-1986    0.008173499 -0.38058805 -0.72294832   0.3182457   0.08992846 -2.2611180     -2.771656             -0.3599635  3.8045765  0.17498230
+## 5 1987-1991    0.008138332 -0.26782373 -1.77173090  -1.4152436  -0.01283970  3.4266095     -4.132540             -1.9481308 -1.0654384 -0.39194170
+## 6 1992-1996   -0.004924491  0.10754713 -0.05151755   5.3540731  -0.01170741 -3.8895917     -1.641699             -1.5671378  8.8983156  0.03776751
+##   PRS85006023_five UMCSENT_five    DFF_five CPILFESL_five DSPIC96_five     PCE_five  PERMIT_five W068RCQ027SBEA_five   DGS10_five GFDEBTN_five
+## 1        0.7518484   0.03524838 -0.12265106    -1.4437431   -0.5813839 -0.008633497 -0.096793324          1.21570821 -0.225254273   -0.5863068
+## 2        0.4029850   0.04710378 -0.14274332    -0.7410231   -0.2885998 -0.321791634 -0.025255275          0.15270826 -0.372447882    0.8895228
+## 3        2.8669715   0.20935417  0.04487461    -3.1175965    1.7277722  0.990819351 -0.004053722         -0.13708548 -0.117406528   -0.8815792
+## 4        5.0274480   0.31011566  0.16181444     1.0792169   -0.3408237  0.848287367 -0.060255027         -0.03246867 -0.559551208    0.2869043
+## 5        7.7331865   0.12115285 -0.16657399     4.3215780    0.2307962  1.470211194  0.075020986          0.53545071 -0.001865224   -1.4515354
+## 6       -0.8245339   0.01845068 -0.09780928     4.6549163    0.2842187  0.425171635 -0.079965621         -0.14884131 -0.244723686   -0.2318145
+##      ICSA_five    DXY_five
+## 1 -0.013133730  0.03014572
+## 2 -0.353653344 -0.60664596
+## 3  0.005946073 -0.28161033
+## 4 -0.104612622  0.08088339
+## 5 -0.037414558  0.34682426
+## 6  0.117843907  0.19107882
+
+summary(para_five_df)
+
+##   Bins_Five         Intercept_five       PPIACO_five       INDPRO_five        PAYEMS_five       WTISPLC_five         GDP_five      
+##  Length:11          Min.   :-0.041470   Min.   :-0.4365   Min.   :-2.23281   Min.   :-2.4283   Min.   :-0.10024   Min.   :-9.4589  
+##  Class :character   1st Qu.:-0.002202   1st Qu.:-0.2649   1st Qu.:-1.00168   1st Qu.:-1.8912   1st Qu.:-0.01227   1st Qu.:-3.0425  
+##  Mode  :character   Median : 0.008138   Median : 0.1075   Median :-0.37167   Median : 0.3182   Median : 0.03574   Median :-0.8849  
+##                     Mean   : 0.004363   Mean   : 0.2025   Mean   :-0.54863   Mean   : 4.1961   Mean   : 0.05927   Mean   :-1.4492  
+##                     3rd Qu.: 0.011520   3rd Qu.: 0.4422   3rd Qu.: 0.08593   3rd Qu.: 9.4560   3rd Qu.: 0.08605   3rd Qu.: 0.2281  
+##                     Max.   : 0.036530   Max.   : 1.6343   Max.   : 0.60815   Max.   :19.4181   Max.   : 0.45719   Max.   : 3.4266  
+##  CPIAUCSL_five     BOGZ1FA895050005Q_five   GDPC1_five       UNRATE_five       PRS85006023_five   UMCSENT_five        DFF_five       
+##  Min.   :-4.1325   Min.   :-1.9481        Min.   :-2.3220   Min.   :-0.39194   Min.   :-5.4977   Min.   :0.01845   Min.   :-0.48011  
+##  1st Qu.:-3.0498   1st Qu.:-0.7912        1st Qu.:-0.5249   1st Qu.:-0.25982   1st Qu.:-0.5004   1st Qu.:0.04910   1st Qu.:-0.13270  
+##  Median :-1.6417   Median :-0.3836        Median : 2.8417   Median :-0.06289   Median : 0.6847   Median :0.12115   Median :-0.05540  
+##  Mean   :-0.8579   Mean   :-0.2797        Mean   : 2.7634   Mean   :-0.07783   Mean   : 0.9233   Mean   :0.17118   Mean   :-0.08225  
+##  3rd Qu.: 1.4349   3rd Qu.:-0.2581        3rd Qu.: 5.0442   3rd Qu.: 0.06936   3rd Qu.: 2.3313   3rd Qu.:0.27385   3rd Qu.:-0.01357  
+##  Max.   : 3.1959   Max.   : 3.1987        Max.   : 8.8983   Max.   : 0.22230   Max.   : 7.7332   Max.   :0.45141   Max.   : 0.16181  
+##  CPILFESL_five      DSPIC96_five        PCE_five         PERMIT_five        W068RCQ027SBEA_five   DGS10_five        GFDEBTN_five      
+##  Min.   :-11.108   Min.   :-0.5814   Min.   :-1.17113   Min.   :-0.167837   Min.   :-1.21916    Min.   :-0.55955   Min.   :-1.451535  
+##  1st Qu.: -3.803   1st Qu.:-0.2583   1st Qu.: 0.06921   1st Qu.:-0.071975   1st Qu.:-0.11903    1st Qu.:-0.23499   1st Qu.:-0.733943  
+##  Median : -1.237   Median :-0.1822   Median : 0.84077   Median :-0.056645   Median : 0.03154    Median :-0.03214   Median :-0.282659  
+##  Mean   : -1.183   Mean   : 0.3494   Mean   : 0.79338   Mean   :-0.032055   Mean   : 0.37744    Mean   :-0.11498   Mean   :-0.320238  
+##  3rd Qu.:  2.700   3rd Qu.: 0.5683   3rd Qu.: 1.23052   3rd Qu.: 0.001098   3rd Qu.: 0.34408    3rd Qu.: 0.01848   3rd Qu.: 0.005567  
+##  Max.   :  7.262   Max.   : 2.5599   Max.   : 2.96023   Max.   : 0.120917   Max.   : 3.79805    Max.   : 0.19116   Max.   : 0.889523  
+##    ICSA_five            DXY_five       
+##  Min.   :-0.353653   Min.   :-0.62931  
+##  1st Qu.:-0.071014   1st Qu.:-0.32254  
+##  Median :-0.013134   Median : 0.03015  
+##  Mean   :-0.038762   Mean   :-0.07408  
+##  3rd Qu.: 0.001257   3rd Qu.: 0.25917  
+##  Max.   : 0.123950   Max.   : 0.37157
+
+# Generating multiple line plot
+ggplot(para_five_df, aes(x = 1:11)) +
+  geom_line(aes(y = Intercept_five), color = 'blue') +
+  geom_line(aes(y = PPIACO_five), color = 'red') +
+  geom_line(aes(y = INDPRO_five), color = 'yellow') +
+  geom_line(aes(y = PAYEMS_five), color = 'green') +
+  geom_line(aes(y = WTISPLC_five), color = 'dark gray') +
+  geom_line(aes(y = GDP_five), color = 'light gray') +
+  geom_line(aes(y = GDPC1_five), color = 'orange') +
+  geom_line(aes(y = UNRATE_five), color = 'blue', linetype = 2) +
+  geom_line(aes(y = PRS85006023_five), color = 'red', linetype = 2) +
+  geom_line(aes(y = UMCSENT_five), color = 'yellow', linetype = 2) +
+  geom_line(aes(y = DFF_five), color = 'green', linetype = 2) +
+  geom_line(aes(y = CPILFESL_five), color = 'dark gray', linetype = 2) +
+  geom_line(aes(y = DSPIC96_five), color = 'light gray', linetype = 2) +
+  geom_line(aes(y = PCE_five), color = 'orange', linetype = 2) +
+  geom_line(aes(y = PERMIT_five), color = 'blue', linetype = 3) +
+  geom_line(aes(y = W068RCQ027SBEA_five), color = 'red', linetype = 3) +
+  geom_line(aes(y = DGS10_five), color = 'yellow', linetype = 3) +
+  geom_line(aes(y = GFDEBTN_five), color = 'green', linetype = 3) +
+  geom_line(aes(y = ICSA_five), color = 'dark gray', linetype = 3) +
+  geom_line(aes(y = DXY_five), color = 'light gray', linetype = 3) +
+  labs(title = 'All Parameters Over Five Year Bins') +
+  scale_x_continuous(breaks = 1:11, labels = Bins_Five) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  xlab('Bins') +
+  ylab('Parameter Values')
+
+# Create a column vector to name the bins in the plot
+Bins_Ten <- rep(c('1967-1976', '1977-1986', '1987-1996', '1997-2006', '2007-2016', 
+              '2017-2022'))
+
+# Group the columns vectors into a dataframe for the ten year bins.
+para_ten_df <- data.frame(Bins_Ten, Intercept_ten, PPIACO_ten, INDPRO_ten, 
+                               PAYEMS_ten, WTISPLC_ten, GDP_ten, CPIAUCSL_ten, 
+                               BOGZ1FA895050005Q_ten, GDPC1_ten, UNRATE_ten, 
+                               PRS85006023_ten, UMCSENT_ten, DFF_ten, 
+                               CPILFESL_ten, DSPIC96_ten, PCE_ten, PERMIT_ten, 
+                               W068RCQ027SBEA_ten, DGS10_ten, GFDEBTN_ten, 
+                               ICSA_ten, DXY_ten)
+head(para_ten_df)
+
+##    Bins_Ten Intercept_ten PPIACO_ten  INDPRO_ten PAYEMS_ten WTISPLC_ten    GDP_ten CPIAUCSL_ten BOGZ1FA895050005Q_ten GDPC1_ten UNRATE_ten
+## 1 1967-1976   0.011511842 -0.6445733 -0.90142787  1.5635247  0.07359354 -1.1572390   -1.8568204           -0.04716731  1.465424 -0.2560858
+## 2 1977-1986   0.008138574  0.8940723 -0.12484065 -0.9051107  0.02876175  0.3953655   -1.5964113           -0.53998516  1.097472  0.0211481
+## 3 1987-1996   0.010720724  0.1254946 -0.68674134 -0.2940428 -0.02848883  1.1341737   -3.3137283           -1.26594681  1.301602 -0.1445780
+## 4 1997-2006  -0.006428465  0.6230186 -1.17943671  7.7214482 -0.04862886 -3.0343656   -0.1762382            0.05252570  3.149241 -0.1995333
+## 5 2007-2016   0.013056436 -0.1105022 -0.00424677  2.6254974  0.06411343 -0.5100193    0.3424548           -0.77929398  6.463381  0.1726658
+## 6 2017-2022   0.014053040 -0.2619268  0.60815486 -2.4204287  0.08658798 -0.3357003    1.6216298           -0.38362193  1.152031 -0.0699587
+##   PRS85006023_ten UMCSENT_ten     DFF_ten CPILFESL_ten DSPIC96_ten   PCE_ten   PERMIT_ten W068RCQ027SBEA_ten   DGS10_ten GFDEBTN_ten     ICSA_ten
+## 1      -0.3384915   0.0635837 -0.10937062   -0.2380125 -0.15018104 0.4402945  0.017549005          0.7589446 -0.20610724   0.1870909 -0.094310597
+## 2       3.0286220   0.2635262  0.02995552    0.5208882  0.09173265 0.7383991 -0.018658278         -0.2442216 -0.34672595  -0.1115350  0.001058992
+## 3       1.7469132   0.1473749 -0.06184534    2.9966936 -0.03980709 0.7163080  0.038118101          0.6622573 -0.20231606  -1.1173899  0.042889870
+## 4       0.2112825   0.3613788 -0.09858056    1.1498087 -0.03830478 1.4258768 -0.019080893          0.7316342  0.07546250  -0.1638790 -0.017304654
+## 5      -2.6567700   0.2073344 -0.01929568  -11.8560369  0.37164454 1.7220702 -0.005344028         -0.3007466  0.12338591  -0.2850205 -0.187325014
+## 6      -0.1762210   0.0510991 -0.01906600   -1.2365343 -0.18222980 0.1470515  0.006249627          0.0569622 -0.01513793   0.2194432 -0.013945823
+##      DXY_ten
+## 1 -0.6739919
+## 2 -0.1194946
+## 3  0.1946777
+## 4 -0.1192766
+## 5 -0.2797068
+## 6 -0.3136375
+
+summary(para_ten_df)
+
+##    Bins_Ten         Intercept_ten         PPIACO_ten          INDPRO_ten        PAYEMS_ten       WTISPLC_ten          GDP_ten       
+##  Length:6           Min.   :-0.006428   Min.   :-0.644573   Min.   :-1.1794   Min.   :-2.4204   Min.   :-0.04863   Min.   :-3.0344  
+##  Class :character   1st Qu.: 0.008784   1st Qu.:-0.224071   1st Qu.:-0.8478   1st Qu.:-0.7523   1st Qu.:-0.01418   1st Qu.:-0.9954  
+##  Mode  :character   Median : 0.011116   Median : 0.007496   Median :-0.4058   Median : 0.6347   Median : 0.04644   Median :-0.4229  
+##                     Mean   : 0.008509   Mean   : 0.104264   Mean   :-0.3814   Mean   : 1.3818   Mean   : 0.02932   Mean   :-0.5846  
+##                     3rd Qu.: 0.012670   3rd Qu.: 0.498638   3rd Qu.:-0.0344   3rd Qu.: 2.3600   3rd Qu.: 0.07122   3rd Qu.: 0.2126  
+##                     Max.   : 0.014053   Max.   : 0.894072   Max.   : 0.6082   Max.   : 7.7214   Max.   : 0.08659   Max.   : 1.1342  
+##   CPIAUCSL_ten     BOGZ1FA895050005Q_ten   GDPC1_ten       UNRATE_ten        PRS85006023_ten     UMCSENT_ten         DFF_ten        
+##  Min.   :-3.3137   Min.   :-1.26595      Min.   :1.097   Min.   :-0.256086   Min.   :-2.65677   Min.   :0.05110   Min.   :-0.10937  
+##  1st Qu.:-1.7917   1st Qu.:-0.71947      1st Qu.:1.189   1st Qu.:-0.185795   1st Qu.:-0.29792   1st Qu.:0.08453   1st Qu.:-0.08940  
+##  Median :-0.8863   Median :-0.46180      Median :1.384   Median :-0.107268   Median : 0.01753   Median :0.17735   Median :-0.04057  
+##  Mean   :-0.8299   Mean   :-0.49391      Mean   :2.438   Mean   :-0.079390   Mean   : 0.30256   Mean   :0.18238   Mean   :-0.04637  
+##  3rd Qu.: 0.2128   3rd Qu.:-0.13128      3rd Qu.:2.728   3rd Qu.:-0.001629   3rd Qu.: 1.36301   3rd Qu.:0.24948   3rd Qu.:-0.01912  
+##  Max.   : 1.6216   Max.   : 0.05253      Max.   :6.463   Max.   : 0.172666   Max.   : 3.02862   Max.   :0.36138   Max.   : 0.02996  
+##   CPILFESL_ten       DSPIC96_ten           PCE_ten         PERMIT_ten         W068RCQ027SBEA_ten   DGS10_ten         GFDEBTN_ten     
+##  Min.   :-11.8560   Min.   :-0.182230   Min.   :0.1471   Min.   :-0.0190809   Min.   :-0.3007    Min.   :-0.34673   Min.   :-1.1174  
+##  1st Qu.: -0.9869   1st Qu.:-0.122588   1st Qu.:0.5093   1st Qu.:-0.0153297   1st Qu.:-0.1689    1st Qu.:-0.20516   1st Qu.:-0.2547  
+##  Median :  0.1414   Median :-0.039056   Median :0.7274   Median : 0.0004528   Median : 0.3596    Median :-0.10873   Median :-0.1377  
+##  Mean   : -1.4439   Mean   : 0.008809   Mean   :0.8650   Mean   : 0.0031389   Mean   : 0.2775    Mean   :-0.09524   Mean   :-0.2119  
+##  3rd Qu.:  0.9926   3rd Qu.: 0.059223   3rd Qu.:1.2540   3rd Qu.: 0.0147242   3rd Qu.: 0.7143    3rd Qu.: 0.05281   3rd Qu.: 0.1124  
+##  Max.   :  2.9967   Max.   : 0.371644   Max.   :1.7221   Max.   : 0.0381181   Max.   : 0.7589    Max.   : 0.12339   Max.   : 0.2194  
+##     ICSA_ten            DXY_ten       
+##  Min.   :-0.187325   Min.   :-0.6740  
+##  1st Qu.:-0.075059   1st Qu.:-0.3052  
+##  Median :-0.015625   Median :-0.1996  
+##  Mean   :-0.044823   Mean   :-0.2186  
+##  3rd Qu.:-0.002692   3rd Qu.:-0.1193  
+##  Max.   : 0.042890   Max.   : 0.1947
+
+# Generating multiple line plot
+ggplot(para_ten_df, aes(x = 1:6)) +
+  geom_line(aes(y = Intercept_ten), color = 'blue') +
+  geom_line(aes(y = PPIACO_ten), color = 'red') +
+  geom_line(aes(y = INDPRO_ten), color = 'yellow') +
+  geom_line(aes(y = PAYEMS_ten), color = 'green') +
+  geom_line(aes(y = WTISPLC_ten), color = 'dark gray') +
+  geom_line(aes(y = GDP_ten), color = 'light gray') +
+  geom_line(aes(y = GDPC1_ten), color = 'orange') +
+  geom_line(aes(y = UNRATE_ten), color = 'blue', linetype = 2) +
+  geom_line(aes(y = PRS85006023_ten), color = 'red', linetype = 2) +
+  geom_line(aes(y = UMCSENT_ten), color = 'yellow', linetype = 2) +
+  geom_line(aes(y = DFF_ten), color = 'green', linetype = 2) +
+  geom_line(aes(y = CPILFESL_ten), color = 'dark gray', linetype = 2) +
+  geom_line(aes(y = DSPIC96_ten), color = 'light gray', linetype = 2) +
+  geom_line(aes(y = PCE_ten), color = 'orange', linetype = 2) +
+  geom_line(aes(y = PERMIT_ten), color = 'blue', linetype = 3) +
+  geom_line(aes(y = W068RCQ027SBEA_ten), color = 'red', linetype = 3) +
+  geom_line(aes(y = DGS10_ten), color = 'yellow', linetype = 3) +
+  geom_line(aes(y = GFDEBTN_ten), color = 'green', linetype = 3) +
+  geom_line(aes(y = ICSA_ten), color = 'dark gray', linetype = 3) +
+  geom_line(aes(y = DXY_ten), color = 'light gray', linetype = 3) +
+  scale_x_continuous(breaks = 1:6, labels = Bins_Ten) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  labs(title = 'All Parameters Over Ten Year Bins') +
+  xlab('Bins') +
+  ylab('Parameter Values')
+
+# Further model analysis for the models based around model fit.
+
+# Capture r-squared of each of the five year bin models
+bin_five_01_r2 <- summary(bin_five_01_model)$r.squared
+bin_five_02_r2 <- summary(bin_five_02_model)$r.squared
+bin_five_03_r2 <- summary(bin_five_03_model)$r.squared
+bin_five_04_r2 <- summary(bin_five_04_model)$r.squared
+bin_five_05_r2 <- summary(bin_five_05_model)$r.squared
+bin_five_06_r2 <- summary(bin_five_06_model)$r.squared
+bin_five_07_r2 <- summary(bin_five_07_model)$r.squared
+bin_five_08_r2 <- summary(bin_five_08_model)$r.squared
+bin_five_09_r2 <- summary(bin_five_09_model)$r.squared
+bin_five_10_r2 <- summary(bin_five_10_model)$r.squared
+bin_five_11_r2 <- summary(bin_five_11_model)$r.squared
+
+# Capture r-squared of each of the ten year bin models
+bin_ten_01_r2 <- summary(bin_ten_01_model)$r.squared
+bin_ten_02_r2 <- summary(bin_ten_02_model)$r.squared
+bin_ten_03_r2 <- summary(bin_ten_03_model)$r.squared
+bin_ten_04_r2 <- summary(bin_ten_04_model)$r.squared
+bin_ten_05_r2 <- summary(bin_ten_05_model)$r.squared
+bin_ten_06_r2 <- summary(bin_ten_06_model)$r.squared
+
+# Extracting adjusted r-squared values from the five year bin models for analysis.
+bin_five_01_adjr2 <- summary(bin_five_01_model)$adj.r.squared
+bin_five_02_adjr2 <- summary(bin_five_02_model)$adj.r.squared
+bin_five_03_adjr2 <- summary(bin_five_03_model)$adj.r.squared
+bin_five_04_adjr2 <- summary(bin_five_04_model)$adj.r.squared
+bin_five_05_adjr2 <- summary(bin_five_05_model)$adj.r.squared
+bin_five_06_adjr2 <- summary(bin_five_06_model)$adj.r.squared
+bin_five_07_adjr2 <- summary(bin_five_07_model)$adj.r.squared
+bin_five_08_adjr2 <- summary(bin_five_08_model)$adj.r.squared
+bin_five_09_adjr2 <- summary(bin_five_09_model)$adj.r.squared
+bin_five_10_adjr2 <- summary(bin_five_10_model)$adj.r.squared
+bin_five_11_adjr2 <- summary(bin_five_11_model)$adj.r.squared
+
+# Extracting adjusted r-squared values from the ten year bin models for analysis.
+bin_ten_01_adjr2 <- summary(bin_ten_01_model)$adj.r.squared
+bin_ten_02_adjr2 <- summary(bin_ten_02_model)$adj.r.squared
+bin_ten_03_adjr2 <- summary(bin_ten_03_model)$adj.r.squared
+bin_ten_04_adjr2 <- summary(bin_ten_04_model)$adj.r.squared
+bin_ten_05_adjr2 <- summary(bin_ten_05_model)$adj.r.squared
+bin_ten_06_adjr2 <- summary(bin_ten_06_model)$adj.r.squared
+
+# Fill a vector with r_squared of the five year bin models.
+bin_five_r2 <- c(bin_five_01_r2, bin_five_02_r2, bin_five_03_r2, bin_five_04_r2,
+                 bin_five_05_r2, bin_five_06_r2, bin_five_07_r2, bin_five_08_r2,
+                 bin_five_09_r2, bin_five_10_r2, bin_five_11_r2)
+bin_five_r2
+
+##  [1] 0.3063031 0.5945429 0.4023727 0.6450336 0.4227587 0.5898835 0.4701900 0.4733499 0.7262341 0.5671487 0.6490799
+
+# Fill a vector with the adjusted r-squared of the five year bin models.
+bin_five_adjr2 <- c(bin_five_01_adjr2, bin_five_02_adjr2, bin_five_03_adjr2, 
+                    bin_five_04_adjr2, bin_five_05_adjr2, bin_five_06_adjr2, 
+                    bin_five_07_adjr2, bin_five_08_adjr2, bin_five_09_adjr2, 
+                    bin_five_10_adjr2, bin_five_11_adjr2)
+bin_five_adjr2
+
+##  [1] -0.08741682  0.37047449  0.07210504  0.44886789  0.10375687  0.36324017  0.17740031  0.18230635  0.57494243  0.32794138  0.46934031
+
+# Fill a vector with r_squared of the ten year bin models.
+bin_ten_r2 <- c(bin_ten_01_r2, bin_ten_02_r2, bin_ten_03_r2, bin_ten_04_r2, 
+                bin_ten_05_r2, bin_ten_06_r2)
+bin_ten_r2
+
+## [1] 0.3476166 0.4060183 0.3442654 0.3058920 0.5760022 0.6490799
+
+# Fill a vector with the adjusted r-squared of the ten year bin models.
+bin_ten_adjr2 <- c(bin_ten_01_adjr2, bin_ten_02_adjr2, bin_ten_03_adjr2, 
+                   bin_ten_04_adjr2, bin_ten_05_adjr2, bin_ten_06_adjr2)
+bin_ten_adjr2
+
+## [1] 0.2063789 0.2787365 0.2037508 0.1571545 0.4851456 0.4693403
+
+# After viewing the results, it is clear that there are no strong correlations.
+# Some of the models have r-squared values above .50, but there is no 
+# consistency among the significant parameters and the adjusted r-squared values
+# are poor. The few r-squared values above .50 seem to a product of over 
+# fitting.
+
+# Testing each of the models for better fit with 1-4 of most significant 
+# parameters for each of the bins
+bin_five_01_sig_para_model <- lm(SP500 ~ DFF + GFDEBTN, 
+                                 data =  Macro_SP_MoM_bin_five_01)
+bin_five_02_sig_para_model <- lm(SP500 ~ WTISPLC + ICSA + DXY, 
+                                 data =  Macro_SP_MoM_bin_five_02)
+bin_five_03_sig_para_model <- lm(SP500 ~ UMCSENT + DSPIC96, 
+                                 data =  Macro_SP_MoM_bin_five_03)
+bin_five_04_sig_para_model <- lm(SP500 ~ PRS85006023 + UMCSENT + DGS10, 
+                                 data =  Macro_SP_MoM_bin_five_04)
+bin_five_05_sig_para_model <- lm(SP500 ~ PRS85006023, 
+                                 data =  Macro_SP_MoM_bin_five_05)
+bin_five_06_sig_para_model <- lm(SP500 ~ BOGZ1FA895050005Q + GDPC1 + DGS10, 
+                                 data =  Macro_SP_MoM_bin_five_06)
+bin_five_07_sig_para_model <- lm(SP500 ~ UMCSENT + DFF + PCE, 
+                                 data =  Macro_SP_MoM_bin_five_07)
+bin_five_08_sig_para_model <- lm(SP500 ~ PAYEMS + UMCSENT, 
+                                 data =  Macro_SP_MoM_bin_five_08)
+bin_five_09_sig_para_model <- lm(SP500 ~ GDPC1 + UMCSENT + W068RCQ027SBEA + DXY, 
+                                 data =  Macro_SP_MoM_bin_five_09)
+bin_five_10_sig_para_model <- lm(SP500 ~ PAYEMS, 
+                                 data =  Macro_SP_MoM_bin_five_10)
+bin_five_11_sig_para_model <- lm(SP500 ~ ICSA, 
+                                 data =  Macro_SP_MoM_bin_five_11)
+bin_ten_01_sig_para_model <- lm(SP500 ~ WTISPLC + UNRATE + DFF + DXY, 
+                                 data =  Macro_SP_MoM_bin_ten_01)
+bin_ten_02_sig_para_model <- lm(SP500 ~ UMCSENT + DGS10, 
+                                data =  Macro_SP_MoM_bin_ten_02)
+bin_ten_03_sig_para_model <- lm(SP500 ~ BOGZ1FA895050005Q + UMCSENT + DGS10, 
+                                data =  Macro_SP_MoM_bin_ten_03)
+bin_ten_04_sig_para_model <- lm(SP500 ~ PAYEMS + UMCSENT, 
+                                data =  Macro_SP_MoM_bin_ten_04)
+bin_ten_05_sig_para_model <- lm(SP500 ~ GDPC1 + UMCSENT + DGS10 + ICSA + 
+                                  CPILFESL, data =  Macro_SP_MoM_bin_ten_05)
+bin_ten_06_sig_para_model <- lm(SP500 ~ ICSA,
+                                data =  Macro_SP_MoM_bin_ten_06)
+
+# Capture r-squared of each of the five year bin models
+bin_five_01_sig_para_r2 <- summary(bin_five_01_sig_para_model)$r.squared
+bin_five_02_sig_para_r2 <- summary(bin_five_02_sig_para_model)$r.squared
+bin_five_03_sig_para_r2 <- summary(bin_five_03_sig_para_model)$r.squared
+bin_five_04_sig_para_r2 <- summary(bin_five_04_sig_para_model)$r.squared
+bin_five_05_sig_para_r2 <- summary(bin_five_05_sig_para_model)$r.squared
+bin_five_06_sig_para_r2 <- summary(bin_five_06_sig_para_model)$r.squared
+bin_five_07_sig_para_r2 <- summary(bin_five_07_sig_para_model)$r.squared
+bin_five_08_sig_para_r2 <- summary(bin_five_08_sig_para_model)$r.squared
+bin_five_09_sig_para_r2 <- summary(bin_five_09_sig_para_model)$r.squared
+bin_five_10_sig_para_r2 <- summary(bin_five_10_sig_para_model)$r.squared
+bin_five_11_sig_para_r2 <- summary(bin_five_11_sig_para_model)$r.squared
+
+# Fill a vector with r_squared of the five year bin models.
+bin_five_sig_para_r2 <- c(bin_five_01_sig_para_r2, bin_five_02_sig_para_r2, 
+                          bin_five_03_sig_para_r2, bin_five_04_sig_para_r2, 
+                          bin_five_05_sig_para_r2, bin_five_06_sig_para_r2, 
+                          bin_five_07_sig_para_r2, bin_five_08_sig_para_r2, 
+                          bin_five_09_sig_para_r2, bin_five_10_sig_para_r2, 
+                          bin_five_11_sig_para_r2)
+bin_five_sig_para_r2
+
+##  [1] 0.040544638 0.205079146 0.164654414 0.487399392 0.004508476 0.427530957 0.227750606 0.248760457 0.460710702 0.184404836 0.516480101
+
+# Capture r-squared of each of the five year bin models
+bin_ten_01_sig_para_r2 <- summary(bin_ten_01_sig_para_model)$r.squared
+bin_ten_02_sig_para_r2 <- summary(bin_ten_02_sig_para_model)$r.squared
+bin_ten_03_sig_para_r2 <- summary(bin_ten_03_sig_para_model)$r.squared
+bin_ten_04_sig_para_r2 <- summary(bin_ten_04_sig_para_model)$r.squared
+bin_ten_05_sig_para_r2 <- summary(bin_ten_05_sig_para_model)$r.squared
+bin_ten_06_sig_para_r2 <- summary(bin_ten_06_sig_para_model)$r.squared
+
+# Fill a vector with r_squared of the five year bin models.
+bin_ten_sig_para_r2 <- c(bin_ten_01_sig_para_r2, bin_ten_02_sig_para_r2, 
+                         bin_ten_03_sig_para_r2, bin_ten_04_sig_para_r2, 
+                         bin_ten_05_sig_para_r2, bin_ten_06_sig_para_r2)
+bin_ten_sig_para_r2
+
+## [1] 0.1699477 0.2924091 0.2011555 0.1972468 0.4171013 0.5164801
+
+# Comparing the change in the r-squared values in each of the new models. Each 
+# of the new models produced a lower coefficient of determination than the 
+# previous models. This indicates a worse fit and that the intial correlations 
+# may be due to overfitting.
+bin_five_r2_sig_para_diff <- bin_five_sig_para_r2 - bin_five_r2
+bin_five_r2_sig_para_diff
+
+##  [1] -0.2657584 -0.3894637 -0.2377183 -0.1576342 -0.4182502 -0.1623525 -0.2424394 -0.2245894 -0.2655234 -0.3827439 -0.1325998
+
+bin_ten_r2_sig_para_diff <- bin_ten_sig_para_r2 - bin_ten_r2
+bin_ten_r2_sig_para_diff
+
+## [1] -0.1776689 -0.1136092 -0.1431099 -0.1086452 -0.1589009 -0.1325998
+
+# Continuing the analysis based on variable selection methods done previously on
+# the prior dataset. Stepwise regression produced the best results across the 
+# whole dataset so only the variables chosen with that method will be tested.
+
+# Parsing the bin dataframes to keep the best variables across the whole dataset
+# baased on stepwise regression analysis.
+new_keep <- c('DFF', 'DXY', 'ICSA', 'PCE', 'UMCSENT', 'SP500')
+Macro_SP_MoM_bin_five_01_sel_para <- Macro_SP_MoM_bin_five_01[, new_keep]
+Macro_SP_MoM_bin_five_02_sel_para <- Macro_SP_MoM_bin_five_02[, new_keep]
+Macro_SP_MoM_bin_five_03_sel_para <- Macro_SP_MoM_bin_five_03[, new_keep]
+Macro_SP_MoM_bin_five_04_sel_para <- Macro_SP_MoM_bin_five_04[, new_keep]
+Macro_SP_MoM_bin_five_05_sel_para <- Macro_SP_MoM_bin_five_05[, new_keep]
+Macro_SP_MoM_bin_five_06_sel_para <- Macro_SP_MoM_bin_five_06[, new_keep]
+Macro_SP_MoM_bin_five_07_sel_para <- Macro_SP_MoM_bin_five_07[, new_keep]
+Macro_SP_MoM_bin_five_08_sel_para <- Macro_SP_MoM_bin_five_08[, new_keep]
+Macro_SP_MoM_bin_five_09_sel_para <- Macro_SP_MoM_bin_five_09[, new_keep]
+Macro_SP_MoM_bin_five_10_sel_para <- Macro_SP_MoM_bin_five_10[, new_keep]
+Macro_SP_MoM_bin_five_11_sel_para <- Macro_SP_MoM_bin_five_11[, new_keep]
+Macro_SP_MoM_bin_ten_01_sel_para <- Macro_SP_MoM_bin_ten_01[, new_keep]
+Macro_SP_MoM_bin_ten_02_sel_para <- Macro_SP_MoM_bin_ten_02[, new_keep]
+Macro_SP_MoM_bin_ten_03_sel_para <- Macro_SP_MoM_bin_ten_03[, new_keep]
+Macro_SP_MoM_bin_ten_04_sel_para <- Macro_SP_MoM_bin_ten_04[, new_keep]
+Macro_SP_MoM_bin_ten_05_sel_para <- Macro_SP_MoM_bin_ten_05[, new_keep]
+Macro_SP_MoM_bin_ten_06_sel_para <- Macro_SP_MoM_bin_ten_06[, new_keep]
+
+# Generating new models
+bin_five_01_sel_para_model <- lm(SP500 ~ ., data = 
+                                   Macro_SP_MoM_bin_five_01_sel_para)
+bin_five_02_sel_para_model <- lm(SP500 ~ ., data = 
+                                   Macro_SP_MoM_bin_five_02_sel_para)
+bin_five_03_sel_para_model <- lm(SP500 ~ ., data = 
+                                   Macro_SP_MoM_bin_five_03_sel_para)
+bin_five_04_sel_para_model <- lm(SP500 ~ ., data = 
+                                   Macro_SP_MoM_bin_five_04_sel_para)
+bin_five_05_sel_para_model <- lm(SP500 ~ ., data = 
+                                   Macro_SP_MoM_bin_five_05_sel_para)
+bin_five_06_sel_para_model <- lm(SP500 ~ ., data = 
+                                   Macro_SP_MoM_bin_five_06_sel_para)
+bin_five_07_sel_para_model <- lm(SP500 ~ ., data = 
+                                   Macro_SP_MoM_bin_five_07_sel_para)
+bin_five_08_sel_para_model <- lm(SP500 ~ ., data = 
+                                   Macro_SP_MoM_bin_five_08_sel_para)
+bin_five_09_sel_para_model <- lm(SP500 ~ ., data = 
+                                   Macro_SP_MoM_bin_five_09_sel_para)
+bin_five_10_sel_para_model <- lm(SP500 ~ ., data = 
+                                   Macro_SP_MoM_bin_five_10_sel_para)
+bin_five_11_sel_para_model <- lm(SP500 ~ ., data = 
+                                   Macro_SP_MoM_bin_five_11_sel_para)
+bin_ten_01_sel_para_model <- lm(SP500 ~ ., data = 
+                                  Macro_SP_MoM_bin_ten_01_sel_para)
+bin_ten_02_sel_para_model <- lm(SP500 ~ ., data = 
+                                  Macro_SP_MoM_bin_ten_02_sel_para)
+bin_ten_03_sel_para_model <- lm(SP500 ~ ., data = 
+                                  Macro_SP_MoM_bin_ten_03_sel_para)
+bin_ten_04_sel_para_model <- lm(SP500 ~ ., data = 
+                                  Macro_SP_MoM_bin_ten_04_sel_para)
+bin_ten_05_sel_para_model <- lm(SP500 ~ ., data = 
+                                  Macro_SP_MoM_bin_ten_05_sel_para)
+bin_ten_06_sel_para_model <- lm(SP500 ~ ., data = 
+                                  Macro_SP_MoM_bin_ten_06_sel_para)
+
+# Capture r-squared of each of the models
+bin_five_01_sel_para_r2 <- summary(bin_five_01_sel_para_model)$r.squared
+bin_five_02_sel_para_r2 <- summary(bin_five_02_sel_para_model)$r.squared
+bin_five_03_sel_para_r2 <- summary(bin_five_03_sel_para_model)$r.squared
+bin_five_04_sel_para_r2 <- summary(bin_five_04_sel_para_model)$r.squared
+bin_five_05_sel_para_r2 <- summary(bin_five_05_sel_para_model)$r.squared
+bin_five_06_sel_para_r2 <- summary(bin_five_06_sel_para_model)$r.squared
+bin_five_07_sel_para_r2 <- summary(bin_five_07_sel_para_model)$r.squared
+bin_five_08_sel_para_r2 <- summary(bin_five_08_sel_para_model)$r.squared
+bin_five_09_sel_para_r2 <- summary(bin_five_09_sel_para_model)$r.squared
+bin_five_10_sel_para_r2 <- summary(bin_five_10_sel_para_model)$r.squared
+bin_five_11_sel_para_r2 <- summary(bin_five_11_sel_para_model)$r.squared
+bin_ten_01_sel_para_r2 <- summary(bin_ten_01_sel_para_model)$r.squared
+bin_ten_02_sel_para_r2 <- summary(bin_ten_02_sel_para_model)$r.squared
+bin_ten_03_sel_para_r2 <- summary(bin_ten_03_sel_para_model)$r.squared
+bin_ten_04_sel_para_r2 <- summary(bin_ten_04_sel_para_model)$r.squared
+bin_ten_05_sel_para_r2 <- summary(bin_ten_05_sel_para_model)$r.squared
+bin_ten_06_sel_para_r2 <- summary(bin_ten_06_sel_para_model)$r.squared
+
+# Fill vector with r_squared of the five year bin models.
+# After viewing the results, it is clear that there are no strong correlations.
+# Some of the models have r-squared values above .50, but there is no 
+# consistency among the significant parameters. 
+bin_five_sel_para_r2 <- c(bin_five_01_sel_para_r2, bin_five_02_sel_para_r2, 
+                          bin_five_03_sel_para_r2, bin_five_04_sel_para_r2, 
+                          bin_five_05_sel_para_r2, bin_five_06_sel_para_r2, 
+                          bin_five_07_sel_para_r2, bin_five_08_sel_para_r2, 
+                          bin_five_09_sel_para_r2, bin_five_10_sel_para_r2, 
+                          bin_five_11_sel_para_r2)
+bin_five_sel_para_r2
+
+##  [1] 0.04077444 0.31556131 0.26732132 0.17291215 0.19883797 0.10526982 0.25201725 0.23375783 0.48281642 0.12136414 0.54867904
+
+# Fill vector with r_squared of the ten year bin models.
+bin_ten_sel_para_r2 <- c(bin_ten_01_sel_para_r2, bin_ten_02_sel_para_r2, 
+                         bin_ten_03_sel_para_r2, bin_ten_04_sel_para_r2, 
+                         bin_ten_05_sel_para_r2, bin_ten_06_sel_para_r2)
+bin_ten_sel_para_r2
+
+## [1] 0.1603363 0.1998372 0.1254736 0.1883970 0.3615418 0.5486790
+
+# Calculating the change in r-squared values once only the select parameters 
+# were used to process the model. The linear regression model had a worse fit
+# across all periods when only using the select parameters.
+bin_five_r2_sel_para_diff <- bin_five_sel_para_r2 - bin_five_r2
+bin_five_r2_sel_para_diff
+
+##  [1] -0.2655286 -0.2789816 -0.1350514 -0.4721214 -0.2239207 -0.4846137 -0.2181728 -0.2395920 -0.2434177 -0.4457846 -0.1004008
+
+bin_ten_r2_sel_para_diff <- bin_ten_sel_para_r2 - bin_ten_r2
+bin_ten_r2_sel_para_diff
+
+## [1] -0.1872803 -0.2061811 -0.2187918 -0.1174949 -0.2144605 -0.1004008
+
+# Collecting the p-values for the select parameter models into a dataframe
+
+# Collecting p-values from each of the select parameter models
+bin_five_01_sel_para_pval <- summary(bin_five_01_sel_para_model)$coefficients[, 4]
+bin_five_02_sel_para_pval <- summary(bin_five_02_sel_para_model)$coefficients[, 4]
+bin_five_03_sel_para_pval <- summary(bin_five_03_sel_para_model)$coefficients[, 4]
+bin_five_04_sel_para_pval <- summary(bin_five_04_sel_para_model)$coefficients[, 4]
+bin_five_05_sel_para_pval <- summary(bin_five_05_sel_para_model)$coefficients[, 4]
+bin_five_06_sel_para_pval <- summary(bin_five_06_sel_para_model)$coefficients[, 4]
+bin_five_07_sel_para_pval <- summary(bin_five_07_sel_para_model)$coefficients[, 4]
+bin_five_08_sel_para_pval <- summary(bin_five_08_sel_para_model)$coefficients[, 4]
+bin_five_09_sel_para_pval <- summary(bin_five_09_sel_para_model)$coefficients[, 4]
+bin_five_10_sel_para_pval <- summary(bin_five_10_sel_para_model)$coefficients[, 4]
+bin_five_11_sel_para_pval <- summary(bin_five_11_sel_para_model)$coefficients[, 4]
+bin_ten_01_sel_para_pval <- summary(bin_ten_01_sel_para_model)$coefficients[, 4]
+bin_ten_02_sel_para_pval <- summary(bin_ten_02_sel_para_model)$coefficients[, 4]
+bin_ten_03_sel_para_pval <- summary(bin_ten_03_sel_para_model)$coefficients[, 4]
+bin_ten_04_sel_para_pval <- summary(bin_ten_04_sel_para_model)$coefficients[, 4]
+bin_ten_05_sel_para_pval <- summary(bin_ten_05_sel_para_model)$coefficients[, 4]
+bin_ten_06_sel_para_pval <- summary(bin_ten_06_sel_para_model)$coefficients[, 4]
+
+# Reset column vectors for the select parameters.
+# Initialize column vectors for each of the parameters
+Intercept_sel_para_five <- integer(11)
+UMCSENT_sel_para_five <- integer(11)
+DFF_sel_para_five <- integer(11)
+PCE_sel_para_five <- integer(11)
+ICSA_sel_para_five <- integer(11)
+DXY_sel_para_five <- integer(11)
+Intercept_sel_para_ten <- integer(6)
+UMCSENT_sel_para_ten <- integer(6)
+DFF_sel_para_ten <- integer(6)
+PCE_sel_para_ten <- integer(6)
+ICSA_sel_para_ten <- integer(6)
+DXY_sel_para_ten <- integer(6)
+
+# Create p-value dataframe for the five  year bin select parameter models.
+sel_para_pval_five_df <- data.frame(bin_five_01_sel_para_pval, 
+                                    bin_five_02_sel_para_pval, 
+                                    bin_five_03_sel_para_pval, 
+                                    bin_five_04_sel_para_pval, 
+                                    bin_five_05_sel_para_pval, 
+                                    bin_five_06_sel_para_pval, 
+                                    bin_five_07_sel_para_pval, 
+                                    bin_five_08_sel_para_pval, 
+                                    bin_five_09_sel_para_pval, 
+                                    bin_five_10_sel_para_pval, 
+                                    bin_five_11_sel_para_pval)
+head(sel_para_pval_five_df)
+
+##             bin_five_01_sel_para_pval bin_five_02_sel_para_pval bin_five_03_sel_para_pval bin_five_04_sel_para_pval bin_five_05_sel_para_pval
+## (Intercept)                 0.8071165               0.977327458                0.34192537               0.316248902                0.34869097
+## DFF                         0.3012822               0.001403557                0.29117679               0.720209454                0.09751852
+## DXY                         0.6565749               0.047562799                0.20849790               0.185911827                0.12726166
+## ICSA                        0.7191729               0.005487552                0.96180851               0.326717314                0.74026340
+## PCE                         0.8319695               0.612218451                0.04971198               0.305564073                0.62278003
+## UMCSENT                     0.7086008               0.577323396                0.01268049               0.003720354                0.05683166
+##             bin_five_06_sel_para_pval bin_five_07_sel_para_pval bin_five_08_sel_para_pval bin_five_09_sel_para_pval bin_five_10_sel_para_pval
+## (Intercept)                0.13275490               0.801178613              0.5928403046              0.1928783009                0.34679337
+## DFF                        0.07919903               0.497328093              0.6097062919              0.8313270240                0.07711985
+## DXY                        0.91870116               0.842955062              0.3954214190              0.0158478885                0.89945588
+## ICSA                       0.34665496               0.192514815              0.3230142858              0.1265947214                0.47590860
+## PCE                        0.31872370               0.030315139              0.9941314229              0.0117966058                0.14870176
+## UMCSENT                    0.97214363               0.009477882              0.0003281552              0.0001580669                0.21705592
+##             bin_five_11_sel_para_pval
+## (Intercept)              1.148987e-04
+## DFF                      3.881925e-01
+## DXY                      9.891153e-02
+## ICSA                     1.008499e-09
+## PCE                      9.229304e-01
+## UMCSENT                  8.450172e-01
+
+# Create p-value dataframe for the ten year bin select parameter models.
+sel_para_pval_ten_df <- data.frame(bin_ten_01_sel_para_pval, 
+                                   bin_ten_02_sel_para_pval, 
+                                   bin_ten_03_sel_para_pval, 
+                                   bin_ten_04_sel_para_pval, 
+                                   bin_ten_05_sel_para_pval, 
+                                   bin_ten_06_sel_para_pval)
+head(sel_para_pval_ten_df)
+
+##             bin_ten_01_sel_para_pval bin_ten_02_sel_para_pval bin_ten_03_sel_para_pval bin_ten_04_sel_para_pval bin_ten_05_sel_para_pval
+## (Intercept)              0.963804765             7.933488e-01               0.10257676             9.171974e-01             2.479520e-01
+## DFF                      0.003773258             1.892386e-01               0.03603845             4.239464e-01             4.604053e-01
+## DXY                      0.030418270             7.352649e-02               0.12769383             8.804004e-01             1.427173e-02
+## ICSA                     0.041017498             7.582882e-01               0.40696830             8.723357e-01             1.166074e-02
+## PCE                      0.472824818             5.418366e-02               0.31408046             4.605360e-02             3.750283e-04
+## UMCSENT                  0.243049977             8.521966e-05               0.03948148             2.005446e-05             3.530196e-06
+##             bin_ten_06_sel_para_pval
+## (Intercept)             1.148987e-04
+## DFF                     3.881925e-01
+## DXY                     9.891153e-02
+## ICSA                    1.008499e-09
+## PCE                     9.229304e-01
+## UMCSENT                 8.450172e-01
+
+# Fill the columns vectors from the five year bins dataframe
+for (i in 1:11) {
+  Intercept_sel_para_five[i] = sel_para_pval_five_df[1, i]
+  DFF_sel_para_five[i] = sel_para_pval_five_df[2, i]
+  DXY_sel_para_five[i] = sel_para_pval_five_df[3, i]
+  ICSA_sel_para_five[i] = sel_para_pval_five_df[4, i]
+  PCE_sel_para_five[i] = sel_para_pval_five_df[5, i]
+  UMCSENT_sel_para_five[i] = sel_para_pval_five_df[6, i]
+}
+
+# Fill the columns vectors from the ten year bins dataframe
+for (i in 1:6) {
+  Intercept_sel_para_ten[i] = sel_para_pval_ten_df[1, i]
+  DFF_sel_para_ten[i] = sel_para_pval_ten_df[2, i]
+  DXY_sel_para_ten[i] = sel_para_pval_ten_df[3, i]
+  ICSA_sel_para_ten[i] = sel_para_pval_ten_df[4, i]
+  PCE_sel_para_ten[i] = sel_para_pval_ten_df[5, i]
+  UMCSENT_sel_para_ten[i] = sel_para_pval_ten_df[6, i]
+}
+
+# Group the columns vectors into a dataframe for the five year bins
+sel_para_pval_five_df <- data.frame(Bins_Five, Intercept_sel_para_five, 
+                                DFF_sel_para_five, DXY_sel_para_five, 
+                                ICSA_sel_para_five, PCE_sel_para_five, 
+                                UMCSENT_sel_para_five)
+head(sel_para_pval_five_df)
+
+##   Bins_Five Intercept_sel_para_five DFF_sel_para_five DXY_sel_para_five ICSA_sel_para_five PCE_sel_para_five UMCSENT_sel_para_five
+## 1 1967-1971               0.8071165       0.301282241         0.6565749        0.719172854        0.83196949           0.708600837
+## 2 1972-1976               0.9773275       0.001403557         0.0475628        0.005487552        0.61221845           0.577323396
+## 3 1977-1981               0.3419254       0.291176794         0.2084979        0.961808509        0.04971198           0.012680494
+## 4 1982-1986               0.3162489       0.720209454         0.1859118        0.326717314        0.30556407           0.003720354
+## 5 1987-1991               0.3486910       0.097518516         0.1272617        0.740263404        0.62278003           0.056831660
+## 6 1992-1996               0.1327549       0.079199030         0.9187012        0.346654963        0.31872370           0.972143631
+
+summary(sel_para_pval_five_df)
+
+##   Bins_Five         Intercept_sel_para_five DFF_sel_para_five  DXY_sel_para_five ICSA_sel_para_five PCE_sel_para_five UMCSENT_sel_para_five
+##  Length:11          Min.   :0.0001149       Min.   :0.001404   Min.   :0.01585   Min.   :0.0000     Min.   :0.01180   Min.   :0.0001581    
+##  Class :character   1st Qu.:0.2545636       1st Qu.:0.088359   1st Qu.:0.11309   1st Qu.:0.1596     1st Qu.:0.09921   1st Qu.:0.0065991    
+##  Mode  :character   Median :0.3467934       Median :0.301282   Median :0.20850   Median :0.3267     Median :0.31872   Median :0.0568317    
+##                     Mean   :0.4416245       Mean   :0.354042   Mean   :0.39974   Mean   :0.3835     Mean   :0.44080   Mean   :0.3093943    
+##                     3rd Qu.:0.6970095       3rd Qu.:0.553517   3rd Qu.:0.74977   3rd Qu.:0.5975     3rd Qu.:0.72737   3rd Qu.:0.6429621    
+##                     Max.   :0.9773275       Max.   :0.831327   Max.   :0.91870   Max.   :0.9618     Max.   :0.99413   Max.   :0.9721436
+
+# Group the columns vectors into a dataframe for the ten year bins
+sel_para_pval_ten_df <- data.frame(Bins_Ten, Intercept_sel_para_ten, 
+                               DFF_sel_para_ten, DXY_sel_para_ten, 
+                               ICSA_sel_para_ten, PCE_sel_para_ten, 
+                               UMCSENT_sel_para_ten)
+head(sel_para_pval_ten_df)
+
+##    Bins_Ten Intercept_sel_para_ten DFF_sel_para_ten DXY_sel_para_ten ICSA_sel_para_ten PCE_sel_para_ten UMCSENT_sel_para_ten
+## 1 1967-1976           0.9638047652      0.003773258       0.03041827      4.101750e-02     0.4728248175         2.430500e-01
+## 2 1977-1986           0.7933487858      0.189238572       0.07352649      7.582882e-01     0.0541836635         8.521966e-05
+## 3 1987-1996           0.1025767555      0.036038449       0.12769383      4.069683e-01     0.3140804638         3.948148e-02
+## 4 1997-2006           0.9171973748      0.423946415       0.88040038      8.723357e-01     0.0460536047         2.005446e-05
+## 5 2007-2016           0.2479519926      0.460405350       0.01427173      1.166074e-02     0.0003750283         3.530196e-06
+## 6 2017-2022           0.0001148987      0.388192491       0.09891153      1.008499e-09     0.9229304040         8.450172e-01
+
+summary(sel_para_pval_ten_df)
+
+##    Bins_Ten         Intercept_sel_para_ten DFF_sel_para_ten   DXY_sel_para_ten  ICSA_sel_para_ten PCE_sel_para_ten   UMCSENT_sel_para_ten
+##  Length:6           Min.   :0.0001149      Min.   :0.003773   Min.   :0.01427   Min.   :0.0000    Min.   :0.000375   Min.   :0.0000035   
+##  Class :character   1st Qu.:0.1389206      1st Qu.:0.074339   1st Qu.:0.04120   1st Qu.:0.0190    1st Qu.:0.048086   1st Qu.:0.0000363   
+##  Mode  :character   Median :0.5206504      Median :0.288716   Median :0.08622   Median :0.2240    Median :0.184132   Median :0.0197833   
+##                     Mean   :0.5041658      Mean   :0.250266   Mean   :0.20420   Mean   :0.3484    Mean   :0.301741   Mean   :0.1879429   
+##                     3rd Qu.:0.8862352      3rd Qu.:0.415008   3rd Qu.:0.12050   3rd Qu.:0.6705    3rd Qu.:0.433139   3rd Qu.:0.1921579   
+##                     Max.   :0.9638048      Max.   :0.460405   Max.   :0.88040   Max.   :0.8723    Max.   :0.922930   Max.   :0.8450172
+
+# Based on the above summary of the p-values, none of the predictors are 
+# significant in all of the models. The p-values and r-squared values for the 
+# models with select parameters indicate that these models are bad 
+# representations of the data and did not improve on the previous models.
+
+# Collecting the coefficients from each of the models for plotting
+bin_five_01_sel_para_coeff <- summary(bin_five_01_sel_para_model)$coefficients[, 1]
+bin_five_02_sel_para_coeff <- summary(bin_five_02_sel_para_model)$coefficients[, 1]
+bin_five_03_sel_para_coeff <- summary(bin_five_03_sel_para_model)$coefficients[, 1]
+bin_five_04_sel_para_coeff <- summary(bin_five_04_sel_para_model)$coefficients[, 1]
+bin_five_05_sel_para_coeff <- summary(bin_five_05_sel_para_model)$coefficients[, 1]
+bin_five_06_sel_para_coeff <- summary(bin_five_06_sel_para_model)$coefficients[, 1]
+bin_five_07_sel_para_coeff <- summary(bin_five_07_sel_para_model)$coefficients[, 1]
+bin_five_08_sel_para_coeff <- summary(bin_five_08_sel_para_model)$coefficients[, 1]
+bin_five_09_sel_para_coeff <- summary(bin_five_09_sel_para_model)$coefficients[, 1]
+bin_five_10_sel_para_coeff <- summary(bin_five_10_sel_para_model)$coefficients[, 1]
+bin_five_11_sel_para_coeff <- summary(bin_five_11_sel_para_model)$coefficients[, 1]
+bin_ten_01_sel_para_coeff <- summary(bin_ten_01_sel_para_model)$coefficients[, 1]
+bin_ten_02_sel_para_coeff <- summary(bin_ten_02_sel_para_model)$coefficients[, 1]
+bin_ten_03_sel_para_coeff <- summary(bin_ten_03_sel_para_model)$coefficients[, 1]
+bin_ten_04_sel_para_coeff <- summary(bin_ten_04_sel_para_model)$coefficients[, 1]
+bin_ten_05_sel_para_coeff <- summary(bin_ten_05_sel_para_model)$coefficients[, 1]
+bin_ten_06_sel_para_coeff <- summary(bin_ten_06_sel_para_model)$coefficients[, 1]
+
+# Initialize column vectors for each of the parameters for both five and ten 
+# year bins.
+Intercept_sel_para_five <- integer(11)
+UMCSENT_sel_para_five <- integer(11)
+DFF_sel_para_five <- integer(11)
+PCE_sel_para_five <- integer(11)
+ICSA_sel_para_five <- integer(11)
+DXY_sel_para_five <- integer(11)
+Intercept_sel_para_ten <- integer(6)
+UMCSENT_sel_para_ten <- integer(6)
+DFF_sel_para_ten <- integer(6)
+PCE_sel_para_ten <- integer(6)
+ICSA_sel_para_ten <- integer(6)
+DXY_sel_para_ten <- integer(6)
+
+# Create p-value dataframe for five year bin models
+coeff_five_sel_para_df <- data.frame(bin_five_01_sel_para_coeff, 
+                                     bin_five_02_sel_para_coeff, 
+                                     bin_five_03_sel_para_coeff, 
+                                     bin_five_04_sel_para_coeff, 
+                                     bin_five_05_sel_para_coeff, 
+                                     bin_five_06_sel_para_coeff, 
+                                     bin_five_07_sel_para_coeff, 
+                                     bin_five_08_sel_para_coeff, 
+                                     bin_five_09_sel_para_coeff, 
+                                     bin_five_10_sel_para_coeff, 
+                                     bin_five_11_sel_para_coeff)
+head(coeff_five_sel_para_df)
+
+##             bin_five_01_sel_para_coeff bin_five_02_sel_para_coeff bin_five_03_sel_para_coeff bin_five_04_sel_para_coeff bin_five_05_sel_para_coeff
+## (Intercept)                0.001843388               0.0002601907               -0.006988340                0.006191717                0.006263548
+## DFF                       -0.071574387              -0.2121027737               -0.049228604               -0.029114053               -0.228854585
+## DXY                       -0.446118659              -0.5028559070               -0.261594704               -0.232471209                0.361888007
+## ICSA                      -0.028388151              -0.2802443354               -0.002990132                0.088932162                0.043389193
+## PCE                        0.186585728               0.4545438656                1.441632024                0.640155637                0.431444017
+## UMCSENT                    0.066152089               0.0463058179                0.171075461                0.332740288                0.203774489
+##             bin_five_06_sel_para_coeff bin_five_07_sel_para_coeff bin_five_08_sel_para_coeff bin_five_09_sel_para_coeff bin_five_10_sel_para_coeff
+## (Intercept)                0.007618824               -0.001725517                0.003474729               -0.008499552                0.005035476
+## DFF                       -0.118236723               -0.065483523               -0.030557894               -0.006715392               -0.032612558
+## DXY                       -0.014670385                0.055073385               -0.172304385               -0.565520592               -0.027399362
+## ICSA                       0.071602460               -0.162842847                0.082420472               -0.212381197               -0.060242356
+## PCE                        0.861015224                1.969062065               -0.007823334                3.821974202                1.913197728
+## UMCSENT                   -0.002366501                0.447723090                0.286384816                0.307980169                0.097686015
+##             bin_five_11_sel_para_coeff
+## (Intercept)                 0.01415504
+## DFF                        -0.01278714
+## DXY                        -0.45212957
+## ICSA                       -0.01907970
+## PCE                         0.01793539
+## UMCSENT                    -0.01462007
+
+# Create p-value dataframe for ten year bin models
+coeff_ten_sel_para_df <- data.frame(bin_ten_01_sel_para_coeff, 
+                                    bin_ten_02_sel_para_coeff, 
+                                    bin_ten_03_sel_para_coeff, 
+                                    bin_ten_04_sel_para_coeff, 
+                                    bin_ten_05_sel_para_coeff, 
+                                    bin_ten_06_sel_para_coeff)
+head(coeff_ten_sel_para_df)
+
+##             bin_ten_01_sel_para_coeff bin_ten_02_sel_para_coeff bin_ten_03_sel_para_coeff bin_ten_04_sel_para_coeff bin_ten_05_sel_para_coeff
+## (Intercept)              -0.000262143               0.001156849               0.006561981             -0.0004622635              -0.004540815
+## DFF                      -0.132563458              -0.050197176              -0.146999268             -0.0410576510              -0.012839467
+## DXY                      -0.512837253              -0.232662949               0.214362998             -0.0243400307              -0.392656032
+## ICSA                     -0.124697185               0.015384451               0.061966353             -0.0116570853              -0.199619705
+## PCE                       0.441948433               0.876926706               0.593070441              1.3523595778               3.483345346
+## UMCSENT                   0.083668491               0.232649266               0.133192233              0.3284246881               0.260677733
+##             bin_ten_06_sel_para_coeff
+## (Intercept)                0.01415504
+## DFF                       -0.01278714
+## DXY                       -0.45212957
+## ICSA                      -0.01907970
+## PCE                        0.01793539
+## UMCSENT                   -0.01462007
+
+# Fill the columns vectors from the five year bins dataframe
+for (i in 1:11) {
+  Intercept_sel_para_five[i] = coeff_five_sel_para_df[1, i]
+  DFF_sel_para_five[i] = coeff_five_sel_para_df[2, i]
+  DXY_sel_para_five[i] = coeff_five_sel_para_df[3, i]
+  ICSA_sel_para_five[i] = coeff_five_sel_para_df[4, i]
+  PCE_sel_para_five[i] = coeff_five_sel_para_df[5, i]
+  UMCSENT_sel_para_five[i] = coeff_five_sel_para_df[6, i]
+}
+
+# Fill the column vectors from the ten year bins dataframe
+for (i in 1:6) {
+  Intercept_sel_para_ten[i] = coeff_ten_sel_para_df[1, i]
+  DFF_sel_para_ten[i] = coeff_ten_sel_para_df[2, i]
+  DXY_sel_para_ten[i] = coeff_ten_sel_para_df[3, i]
+  ICSA_sel_para_ten[i] = coeff_ten_sel_para_df[4, i]
+  PCE_sel_para_ten[i] = coeff_ten_sel_para_df[5, i]
+  UMCSENT_sel_para_ten[i] = coeff_ten_sel_para_df[6, i]
+}
+
+# Group the columns vectors into a dataframe for the five year bins.
+sel_para_five_df <- data.frame(Bins_Five, Intercept_sel_para_five,  
+                               UMCSENT_sel_para_five, DFF_sel_para_five, 
+                               PCE_sel_para_five,  ICSA_sel_para_five, 
+                               DXY_sel_para_five)
+head(sel_para_five_df)
+
+##   Bins_Five Intercept_sel_para_five UMCSENT_sel_para_five DFF_sel_para_five PCE_sel_para_five ICSA_sel_para_five DXY_sel_para_five
+## 1 1967-1971            0.0018433876           0.066152089       -0.07157439         0.1865857       -0.028388151       -0.44611866
+## 2 1972-1976            0.0002601907           0.046305818       -0.21210277         0.4545439       -0.280244335       -0.50285591
+## 3 1977-1981           -0.0069883403           0.171075461       -0.04922860         1.4416320       -0.002990132       -0.26159470
+## 4 1982-1986            0.0061917166           0.332740288       -0.02911405         0.6401556        0.088932162       -0.23247121
+## 5 1987-1991            0.0062635483           0.203774489       -0.22885459         0.4314440        0.043389193        0.36188801
+## 6 1992-1996            0.0076188239          -0.002366501       -0.11823672         0.8610152        0.071602460       -0.01467039
+
+summary(sel_para_five_df)
+
+##   Bins_Five         Intercept_sel_para_five UMCSENT_sel_para_five DFF_sel_para_five   PCE_sel_para_five   ICSA_sel_para_five DXY_sel_para_five 
+##  Length:11          Min.   :-0.0084996      Min.   :-0.01462      Min.   :-0.228855   Min.   :-0.007823   Min.   :-0.28024   Min.   :-0.56552  
+##  Class :character   1st Qu.:-0.0007327      1st Qu.: 0.05623      1st Qu.:-0.094906   1st Qu.: 0.309015   1st Qu.:-0.11154   1st Qu.:-0.44912  
+##  Mode  :character   Median : 0.0034747      Median : 0.17108      Median :-0.049229   Median : 0.640156   Median :-0.01908   Median :-0.23247  
+##                     Mean   : 0.0025118      Mean   : 0.17662      Mean   :-0.077933   Mean   : 1.066338   Mean   :-0.04362   Mean   :-0.20528  
+##                     3rd Qu.: 0.0062276      3rd Qu.: 0.29718      3rd Qu.:-0.029836   3rd Qu.: 1.677415   3rd Qu.: 0.05750   3rd Qu.:-0.02103  
+##                     Max.   : 0.0141550      Max.   : 0.44772      Max.   :-0.006715   Max.   : 3.821974   Max.   : 0.08893   Max.   : 0.36189
+
+# Generating multiple line plots for select parameter models
+
+# Initializing vector for parameter names
+parameters <- c('Intercept', 'UMCSENT', 'DFF', 'PCE', 'ICSA', 'DXY')
+
+# Plotting parameters for models built on five year bins
+ggplot(para_five_df, aes(x = 1:11)) +
+  geom_line(aes(y = Intercept_sel_para_five), color = 'blue') +
+  geom_line(aes(y = UMCSENT_sel_para_five), color = 'yellow', linetype = 2) +
+  geom_line(aes(y = DFF_sel_para_five), color = 'green', linetype = 2) +
+  geom_line(aes(y = PCE_sel_para_five), color = 'orange', linetype = 2) +
+  geom_line(aes(y = ICSA_sel_para_five), color = 'dark gray', linetype = 3) +
+  geom_line(aes(y = DXY_sel_para_five), color = 'light gray', linetype = 3) +
+  scale_x_continuous(breaks = 1:11, labels = Bins_Five) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  labs(title = 'Select Parameters Over Five Year Bins') +
+  xlab('Bins') +
+  ylab('Parameter Values')
+
+# Group the columns vectors into a dataframe for the ten year bins.
+sel_para_ten_df <- data.frame(Bins_Ten, Intercept_sel_para_ten, 
+                          UMCSENT_sel_para_ten, 
+                          DFF_sel_para_ten, PCE_sel_para_ten, ICSA_sel_para_ten,
+                          DXY_sel_para_ten)
+head(sel_para_ten_df)
+
+##    Bins_Ten Intercept_sel_para_ten UMCSENT_sel_para_ten DFF_sel_para_ten PCE_sel_para_ten ICSA_sel_para_ten DXY_sel_para_ten
+## 1 1967-1976          -0.0002621430           0.08366849      -0.13256346       0.44194843       -0.12469719      -0.51283725
+## 2 1977-1986           0.0011568491           0.23264927      -0.05019718       0.87692671        0.01538445      -0.23266295
+## 3 1987-1996           0.0065619808           0.13319223      -0.14699927       0.59307044        0.06196635       0.21436300
+## 4 1997-2006          -0.0004622635           0.32842469      -0.04105765       1.35235958       -0.01165709      -0.02434003
+## 5 2007-2016          -0.0045408149           0.26067773      -0.01283947       3.48334535       -0.19961970      -0.39265603
+## 6 2017-2022           0.0141550427          -0.01462007      -0.01278714       0.01793539       -0.01907970      -0.45212957
+
+summary(sel_para_ten_df)
+
+##    Bins_Ten         Intercept_sel_para_ten UMCSENT_sel_para_ten DFF_sel_para_ten   PCE_sel_para_ten  ICSA_sel_para_ten   DXY_sel_para_ten  
+##  Length:6           Min.   :-0.0045408     Min.   :-0.01462     Min.   :-0.14700   Min.   :0.01793   Min.   :-0.199620   Min.   :-0.51284  
+##  Class :character   1st Qu.:-0.0004122     1st Qu.: 0.09605     1st Qu.:-0.11197   1st Qu.:0.47973   1st Qu.:-0.098293   1st Qu.:-0.43726  
+##  Mode  :character   Median : 0.0004474     Median : 0.18292     Median :-0.04563   Median :0.73500   Median :-0.015368   Median :-0.31266  
+##                     Mean   : 0.0027681     Mean   : 0.17067     Mean   :-0.06607   Mean   :1.12760   Mean   :-0.046284   Mean   :-0.23338  
+##                     3rd Qu.: 0.0052107     3rd Qu.: 0.25367     3rd Qu.:-0.01989   3rd Qu.:1.23350   3rd Qu.: 0.008624   3rd Qu.:-0.07642  
+##                     Max.   : 0.0141550     Max.   : 0.32842     Max.   :-0.01279   Max.   :3.48334   Max.   : 0.061966   Max.   : 0.21436
+
+# Plotting parameters for models built on five year bins
+ggplot(para_ten_df, aes(x = 1:6)) +
+  geom_line(aes(y = Intercept_sel_para_ten), color = 'blue') +
+  geom_line(aes(y = UMCSENT_sel_para_ten), color = 'yellow', linetype = 2) +
+  geom_line(aes(y = DFF_sel_para_ten), color = 'green', linetype = 2) +
+  geom_line(aes(y = PCE_sel_para_ten), color = 'orange', linetype = 2) +
+  geom_line(aes(y = ICSA_sel_para_ten), color = 'dark gray', linetype = 3) +
+  geom_line(aes(y = DXY_sel_para_ten), color = 'light gray', linetype = 3) +
+  scale_x_continuous(breaks = 1:6, labels = Bins_Ten) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  ggtitle('Select Parameters Over Ten Year Bins') +
+  xlab('Bins') +
+  ylab('Parameter Values')
+
+# As the original models produced the best r-squared values, the group decided 
+# to re-run the models with a train-test split to determine if the models did 
+# suffer from over fitting.
+
+# Partition data for cross validation
+
+# Setting seed for replication
+set.seed(12)
+
+# Generating random sample for each of the bins
+random_sample_bin_five_01 <- createDataPartition(Macro_SP_MoM_bin_five_01$SP500, 
+                                                 p = 0.8, list = FALSE)
+random_sample_bin_five_02 <- createDataPartition(Macro_SP_MoM_bin_five_02$SP500, 
+                                                 p = 0.8, list = FALSE)
+random_sample_bin_five_03 <- createDataPartition(Macro_SP_MoM_bin_five_03$SP500, 
+                                                 p = 0.8, list = FALSE)
+random_sample_bin_five_04 <- createDataPartition(Macro_SP_MoM_bin_five_04$SP500, 
+                                                 p = 0.8, list = FALSE)
+random_sample_bin_five_05 <- createDataPartition(Macro_SP_MoM_bin_five_05$SP500, 
+                                                 p = 0.8, list = FALSE)
+random_sample_bin_five_06 <- createDataPartition(Macro_SP_MoM_bin_five_06$SP500, 
+                                                 p = 0.8, list = FALSE)
+random_sample_bin_five_07 <- createDataPartition(Macro_SP_MoM_bin_five_07$SP500, 
+                                                 p = 0.8, list = FALSE)
+random_sample_bin_five_08 <- createDataPartition(Macro_SP_MoM_bin_five_08$SP500, 
+                                                 p = 0.8, list = FALSE)
+random_sample_bin_five_09 <- createDataPartition(Macro_SP_MoM_bin_five_09$SP500, 
+                                                 p = 0.8, list = FALSE)
+random_sample_bin_five_10 <- createDataPartition(Macro_SP_MoM_bin_five_10$SP500, 
+                                                 p = 0.8, list = FALSE)
+random_sample_bin_five_11 <- createDataPartition(Macro_SP_MoM_bin_five_11$SP500, 
+                                                 p = 0.8, list = FALSE)
+random_sample_bin_ten_01 <- createDataPartition(Macro_SP_MoM_bin_ten_01$SP500, 
+                                                p = 0.8, list = FALSE)
+random_sample_bin_ten_02 <- createDataPartition(Macro_SP_MoM_bin_ten_02$SP500, 
+                                                p = 0.8, list = FALSE)
+random_sample_bin_ten_03 <- createDataPartition(Macro_SP_MoM_bin_ten_03$SP500, 
+                                                p = 0.8, list = FALSE)
+random_sample_bin_ten_04 <- createDataPartition(Macro_SP_MoM_bin_ten_04$SP500, 
+                                                p = 0.8, list = FALSE)
+random_sample_bin_ten_05 <- createDataPartition(Macro_SP_MoM_bin_ten_05$SP500, 
+                                                p = 0.8, list = FALSE)
+random_sample_bin_ten_06 <- createDataPartition(Macro_SP_MoM_bin_ten_06$SP500, 
+                                                p = 0.8, list = FALSE)
+
+# Generate training datasets for each bin
+Macro_SP_MoM_bin_five_01_training <- 
+  Macro_SP_MoM_bin_five_01[random_sample_bin_five_01, ]
+Macro_SP_MoM_bin_five_02_training <- 
+  Macro_SP_MoM_bin_five_02[random_sample_bin_five_02, ]
+Macro_SP_MoM_bin_five_03_training <- 
+  Macro_SP_MoM_bin_five_03[random_sample_bin_five_03, ]
+Macro_SP_MoM_bin_five_04_training <- 
+  Macro_SP_MoM_bin_five_04[random_sample_bin_five_04, ]
+Macro_SP_MoM_bin_five_05_training <- 
+  Macro_SP_MoM_bin_five_05[random_sample_bin_five_05, ]
+Macro_SP_MoM_bin_five_06_training <- 
+  Macro_SP_MoM_bin_five_06[random_sample_bin_five_06, ]
+Macro_SP_MoM_bin_five_07_training <- 
+  Macro_SP_MoM_bin_five_07[random_sample_bin_five_07, ]
+Macro_SP_MoM_bin_five_08_training <- 
+  Macro_SP_MoM_bin_five_08[random_sample_bin_five_08, ]
+Macro_SP_MoM_bin_five_09_training <- 
+  Macro_SP_MoM_bin_five_09[random_sample_bin_five_09, ]
+Macro_SP_MoM_bin_five_10_training <- 
+  Macro_SP_MoM_bin_five_10[random_sample_bin_five_10, ]
+Macro_SP_MoM_bin_five_11_training <- 
+  Macro_SP_MoM_bin_five_11[random_sample_bin_five_11, ]
+Macro_SP_MoM_bin_ten_01_training <- 
+  Macro_SP_MoM_bin_ten_01[random_sample_bin_ten_01, ]
+Macro_SP_MoM_bin_ten_02_training <- 
+  Macro_SP_MoM_bin_ten_02[random_sample_bin_ten_02, ]
+Macro_SP_MoM_bin_ten_03_training <- 
+  Macro_SP_MoM_bin_ten_03[random_sample_bin_ten_03, ]
+Macro_SP_MoM_bin_ten_04_training <- 
+  Macro_SP_MoM_bin_ten_04[random_sample_bin_ten_04, ]
+Macro_SP_MoM_bin_ten_05_training <- 
+  Macro_SP_MoM_bin_ten_05[random_sample_bin_ten_05, ]
+Macro_SP_MoM_bin_ten_06_training <- 
+  Macro_SP_MoM_bin_ten_06[random_sample_bin_ten_06, ]
+
+# Generate testing datasets for each bin
+Macro_SP_MoM_bin_five_01_testing <- 
+  Macro_SP_MoM_bin_five_01[-random_sample_bin_five_01, ]
+Macro_SP_MoM_bin_five_02_testing <- 
+  Macro_SP_MoM_bin_five_02[-random_sample_bin_five_02, ]
+Macro_SP_MoM_bin_five_03_testing <- 
+  Macro_SP_MoM_bin_five_03[-random_sample_bin_five_03, ]
+Macro_SP_MoM_bin_five_04_testing <- 
+  Macro_SP_MoM_bin_five_04[-random_sample_bin_five_04, ]
+Macro_SP_MoM_bin_five_05_testing <- 
+  Macro_SP_MoM_bin_five_05[-random_sample_bin_five_05, ]
+Macro_SP_MoM_bin_five_06_testing <- 
+  Macro_SP_MoM_bin_five_06[-random_sample_bin_five_06, ]
+Macro_SP_MoM_bin_five_07_testing <- 
+  Macro_SP_MoM_bin_five_07[-random_sample_bin_five_07, ]
+Macro_SP_MoM_bin_five_08_testing <- 
+  Macro_SP_MoM_bin_five_08[-random_sample_bin_five_08, ]
+Macro_SP_MoM_bin_five_09_testing <- 
+  Macro_SP_MoM_bin_five_09[-random_sample_bin_five_09, ]
+Macro_SP_MoM_bin_five_10_testing <- 
+  Macro_SP_MoM_bin_five_10[-random_sample_bin_five_10, ]
+Macro_SP_MoM_bin_five_11_testing <- 
+  Macro_SP_MoM_bin_five_11[-random_sample_bin_five_11, ]
+Macro_SP_MoM_bin_ten_01_testing <- 
+  Macro_SP_MoM_bin_ten_01[random_sample_bin_ten_01, ]
+Macro_SP_MoM_bin_ten_02_testing <- 
+  Macro_SP_MoM_bin_ten_02[random_sample_bin_ten_02, ]
+Macro_SP_MoM_bin_ten_03_testing <- 
+  Macro_SP_MoM_bin_ten_03[random_sample_bin_ten_03, ]
+Macro_SP_MoM_bin_ten_04_testing <- 
+  Macro_SP_MoM_bin_ten_04[random_sample_bin_ten_04, ]
+Macro_SP_MoM_bin_ten_05_testing <- 
+  Macro_SP_MoM_bin_ten_05[random_sample_bin_ten_05, ]
+Macro_SP_MoM_bin_ten_06_testing <- 
+  Macro_SP_MoM_bin_ten_06[random_sample_bin_ten_06, ]
+
+# Generating new models with the training data sets
+bin_five_01_cv_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_five_01_training)
+bin_five_02_cv_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_five_02_training)
+bin_five_03_cv_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_five_03_training)
+bin_five_04_cv_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_five_04_training)
+bin_five_05_cv_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_five_05_training)
+bin_five_06_cv_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_five_06_training)
+bin_five_07_cv_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_five_07_training)
+bin_five_08_cv_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_five_08_training)
+bin_five_09_cv_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_five_09_training)
+bin_five_10_cv_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_five_10_training)
+bin_five_11_cv_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_five_11_training)
+bin_ten_01_cv_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_ten_01_training)
+bin_ten_02_cv_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_ten_02_training)
+bin_ten_03_cv_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_ten_03_training)
+bin_ten_04_cv_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_ten_04_training)
+bin_ten_05_cv_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_ten_05_training)
+bin_ten_06_cv_model <- lm(SP500 ~ ., data = Macro_SP_MoM_bin_ten_06_training)
+
+# Testing each of the models on their respective testing datasets
+bin_five_01_pred <- predict(bin_five_01_cv_model, 
+                            Macro_SP_MoM_bin_five_01_testing)
+bin_five_02_pred <- predict(bin_five_02_cv_model, 
+                            Macro_SP_MoM_bin_five_02_testing)
+bin_five_03_pred <- predict(bin_five_03_cv_model, 
+                            Macro_SP_MoM_bin_five_03_testing)
+bin_five_04_pred <- predict(bin_five_04_cv_model, 
+                            Macro_SP_MoM_bin_five_04_testing)
+bin_five_05_pred <- predict(bin_five_05_cv_model, 
+                            Macro_SP_MoM_bin_five_05_testing)
+bin_five_06_pred <- predict(bin_five_06_cv_model, 
+                            Macro_SP_MoM_bin_five_06_testing)
+bin_five_07_pred <- predict(bin_five_07_cv_model, 
+                            Macro_SP_MoM_bin_five_07_testing)
+bin_five_08_pred <- predict(bin_five_08_cv_model, 
+                            Macro_SP_MoM_bin_five_08_testing)
+bin_five_09_pred <- predict(bin_five_09_cv_model, 
+                            Macro_SP_MoM_bin_five_09_testing)
+bin_five_10_pred <- predict(bin_five_10_cv_model, 
+                            Macro_SP_MoM_bin_five_10_testing)
+bin_five_11_pred <- predict(bin_five_11_cv_model, 
+                            Macro_SP_MoM_bin_five_11_testing)
+bin_ten_01_pred <- predict(bin_ten_01_cv_model, 
+                            Macro_SP_MoM_bin_ten_01_testing)
+bin_ten_02_pred <- predict(bin_ten_02_cv_model, 
+                           Macro_SP_MoM_bin_ten_02_testing)
+bin_ten_03_pred <- predict(bin_ten_03_cv_model, 
+                           Macro_SP_MoM_bin_ten_03_testing)
+bin_ten_04_pred <- predict(bin_ten_04_cv_model, 
+                           Macro_SP_MoM_bin_ten_04_testing)
+bin_ten_05_pred <- predict(bin_ten_05_cv_model, 
+                           Macro_SP_MoM_bin_ten_05_testing)
+bin_ten_06_pred <- predict(bin_ten_06_cv_model, 
+                           Macro_SP_MoM_bin_ten_06_testing)
+
+# Computing the r-squared based on the model predictions
+bin_five_01_cv_r2 <- R2(bin_five_01_pred, Macro_SP_MoM_bin_five_01_testing$SP500)
+bin_five_02_cv_r2 <- R2(bin_five_02_pred, Macro_SP_MoM_bin_five_02_testing$SP500)
+bin_five_03_cv_r2 <- R2(bin_five_03_pred, Macro_SP_MoM_bin_five_03_testing$SP500)
+bin_five_04_cv_r2 <- R2(bin_five_04_pred, Macro_SP_MoM_bin_five_04_testing$SP500)
+bin_five_05_cv_r2 <- R2(bin_five_05_pred, Macro_SP_MoM_bin_five_05_testing$SP500)
+bin_five_06_cv_r2 <- R2(bin_five_06_pred, Macro_SP_MoM_bin_five_06_testing$SP500)
+bin_five_07_cv_r2 <- R2(bin_five_07_pred, Macro_SP_MoM_bin_five_07_testing$SP500)
+bin_five_08_cv_r2 <- R2(bin_five_08_pred, Macro_SP_MoM_bin_five_08_testing$SP500)
+bin_five_09_cv_r2 <- R2(bin_five_09_pred, Macro_SP_MoM_bin_five_09_testing$SP500)
+bin_five_10_cv_r2 <- R2(bin_five_10_pred, Macro_SP_MoM_bin_five_10_testing$SP500)
+bin_five_11_cv_r2 <- R2(bin_five_11_pred, Macro_SP_MoM_bin_five_11_testing$SP500)
+bin_ten_01_cv_r2 <- R2(bin_ten_01_pred, Macro_SP_MoM_bin_ten_01_testing$SP500)
+bin_ten_02_cv_r2 <- R2(bin_ten_02_pred, Macro_SP_MoM_bin_ten_02_testing$SP500)
+bin_ten_03_cv_r2 <- R2(bin_ten_03_pred, Macro_SP_MoM_bin_ten_03_testing$SP500)
+bin_ten_04_cv_r2 <- R2(bin_ten_04_pred, Macro_SP_MoM_bin_ten_04_testing$SP500)
+bin_ten_05_cv_r2 <- R2(bin_ten_05_pred, Macro_SP_MoM_bin_ten_05_testing$SP500)
+bin_ten_06_cv_r2 <- R2(bin_ten_06_pred, Macro_SP_MoM_bin_ten_06_testing$SP500)
+
+# Creating vectors to store r-squared values for comparison for five year bins
+bin_five_cv_r2 <- c(bin_five_01_cv_r2, bin_five_02_cv_r2, bin_five_03_cv_r2, 
+                    bin_five_04_cv_r2, bin_five_05_cv_r2, bin_five_06_cv_r2, 
+                    bin_five_07_cv_r2, bin_five_08_cv_r2, bin_five_09_cv_r2, 
+                    bin_five_10_cv_r2, bin_five_01_cv_r2)
+bin_five_cv_r2
+
+##  [1] 5.187887e-03 5.658698e-02 1.676448e-01 4.185416e-01 1.303245e-01 1.421960e-01 2.944784e-01 1.758831e-02 1.075256e-01 2.856973e-05 5.187887e-03
+
+# The resulting correlations are unbelievably low and indicate that the bins are
+# too small and generating over fit models.
+
+# Creating vectors to store r-squared values for comparison for ten year bins
+bin_ten_cv_r2 <- c(bin_ten_01_cv_r2, bin_ten_02_cv_r2, bin_ten_03_cv_r2, 
+                   bin_ten_04_cv_r2, bin_ten_05_cv_r2, bin_ten_06_cv_r2)
+bin_ten_cv_r2
+
+## [1] 0.3097318 0.4364592 0.3512250 0.3581268 0.5268957 0.7525528
+
+# The resulting r-squared values indicate that these models were generated with
+# sufficient data and are not over fit to the dataset.

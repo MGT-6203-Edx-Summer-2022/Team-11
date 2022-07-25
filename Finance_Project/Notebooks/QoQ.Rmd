@@ -1,0 +1,669 @@
+---
+title: "Models on Quarter over Quarter dataset"
+author: "Anuj Shelat and Jari Oinas"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+--------------------------------
+#1. Models  for variable selections - Anuj
+--------------------------------
+
+## Libraries and Data
+
+```{r libraries and data}
+
+#-------------------------------------------------------------------------------
+# Libraries
+#-------------------------------------------------------------------------------
+if (!require(tidyverse)) install.packages('tidyverse')
+library(tidyverse)
+if (!require(corrplot)) install.packages('corrplot')
+library(corrplot)
+if (!require(leaps)) install.packages('leaps')
+library(leaps)
+if (!require(caret)) install.packages('caret')
+library(caret)
+if (!require(glmnet)) install.packages('glmnet')
+library(glmnet)
+if (!require(tidyr)) install.packages('tidyr')
+library(tidyr)
+if (!require(ggpubr)) install.packages('ggpubr')
+library(ggpubr)
+
+#-------------------------------------------------------------------------------
+# Load Quarterly Data
+#-------------------------------------------------------------------------------
+# Load  data
+df <- read.csv('~/GitHub/Team-11/Deliverables/Phase 4/Final Data Source/Macro_SP_QoQ.csv')
+
+# remove date
+df <- subset(df,select=-c(date))
+
+# Remove Shiller_PE
+Macro_SP_QoQ <- subset(df, select=-c(shiller_PE))
+
+# summarize data
+head(Macro_SP_QoQ)
+summary(Macro_SP_QoQ)
+```
+
+
+## Stepwise Linear Regression
+
+
+```{r stepwise regression}
+#create null and full models
+m0 <- lm(SP500 ~ 1, data = Macro_SP_QoQ)
+m1 <- lm(SP500 ~ ., data = Macro_SP_QoQ)
+```
+
+```{r forward}
+
+forward <- step(m0, scope = list(lower = m0, upper = m1),
+                direction = "forward", k = log(NROW(Macro_SP_QoQ$SP500)), trace = 0)
+summary(forward)
+forward$anova
+extractAIC(forward)
+
+#adj r2 .2689, 2 variables selected
+```
+
+```{r backward}
+
+backward <- step(m1, scope = list(lower = m0, upper = m1),
+                direction = "backward", k = log(NROW(Macro_SP_QoQ$SP500)), trace = 0)
+summary(backward)
+backward$anova
+extractAIC(backward) 
+
+#adj2 .3252, 7 variables selected
+```
+
+```{r both}
+both <- step(m0, scope = list(lower = m0, upper = m1),
+                direction = "both", k = log(NROW(Macro_SP_QoQ$SP500)), trace = 0)
+summary(both)
+both$anova
+extractAIC(both) 
+
+#same model as forward selection
+#adj r2 .2689, 2 variables selected
+```
+
+```{r exhaustive search using leaps}
+
+leaps_model <- regsubsets(Macro_SP_QoQ$SP500 ~ ., 
+                                 data = Macro_SP_QoQ, nvmax = 19)
+s <- summary(leaps_model)
+print(s)
+
+plot(leaps_model, scale = "bic")
+# using BIC as information criterion, 2 variable selection is best
+# using adj r2 or AIC, 8 variable selection is best
+
+plot(s$adjr2, xlab = "No. of variables", ylab = "Adjusted R Squared")
+points(which.max(s$adjr2), s$adjr2[which.max(s$adjr2)],pch = 19, col = 'red')
+
+plot(s$cp, xlab = "No. of variables", ylab = "AIC")
+points(which.min(s$cp), s$cp[which.min(s$cp)],pch = 19, col = 'red')
+
+plot(s$bic, xlab = "No. of variables", ylab = "BIC")
+points(which.min(s$bic), s$bic[which.min(s$bic)],pch = 19, col = 'red')
+
+final_leaps <- regsubsets(Macro_SP_QoQ$SP500 ~ ., 
+                                 data = Macro_SP_QoQ, nvmax = 9)
+plot(final_leaps, scale = "bic")
+
+```
+
+## Final Stepwise models
+
+```{r}
+#helper function
+
+test_resample = function(fit, data) {
+  set.seed(1)
+  index <- createDataPartition(data$SP500, p = 0.9, times = 1, list = FALSE)
+  train <- data[index,]
+  test <- data[-index,]
+  testx <- as.matrix(test[,-22])
+  pred <- predict(fit, test)
+  postResample(pred, test$SP500)
+}
+
+```
+
+
+```{r}
+
+Macro_SP_QoQ_0m0 <- lm(SP500 ~ 1, data = Macro_SP_QoQ)
+Macro_SP_QoQ_0m1 <- lm(SP500 ~ ., data = Macro_SP_QoQ)
+summary(Macro_SP_QoQ_0m1)
+
+lm.fit.foward <- step(Macro_SP_QoQ_0m0, scope = list(lower = Macro_SP_QoQ_0m0, upper = Macro_SP_QoQ_0m1),
+                direction = "both", k = log(NROW(Macro_SP_QoQ$SP500)), trace = 0)
+summary(lm.fit.foward)
+
+lm.fit.backward <- step(Macro_SP_QoQ_0m1, scope = list(lower = Macro_SP_QoQ_0m0, upper = Macro_SP_QoQ_0m1),
+                direction = "both", k = log(NROW(Macro_SP_QoQ$SP500)), trace = 0)
+summary(lm.fit.backward)
+
+df <- data.frame("Model" = c("Full Model", "Forward Stepwise",
+                             "Backward Stepwise", "ElasticNet Caret",
+                             "ElasticNet GLMNET", "LASSO"),
+                 "RMSE" = rep(0,6),
+                 "RSquared" = rep(0,6),
+                 "MAE" = rep(0,6))
+
+df[1,2:4] <- test_resample(Macro_SP_QoQ_0m1, Macro_SP_QoQ)
+df[2,2:4] <- test_resample(lm.fit.foward, Macro_SP_QoQ)
+df[3,2:4] <- test_resample(lm.fit.backward, Macro_SP_QoQ)
+
+```
+
+## ElasticNet Linear Regression Models
+
+### LASSO
+
+```{r LASSO}
+
+set.seed(42)
+
+X = model.matrix(SP500 ~ ., data = Macro_SP_QoQ)[,-1]
+Y = Macro_SP_QoQ$SP500
+
+model_lasso <- glmnet(x = X, y = Y, alpha = 1, nfolds = 10,
+type.measure = "mse", family = "gaussian", standardize = TRUE)
+
+print(model_lasso)
+plot(model_lasso)
+
+```
+
+```{r LASSO variable selection part 1}
+
+
+set.seed(42)
+
+cv_lasso <- cv.glmnet(x = X, y = Y, alpha = 1, nfolds = 10,
+type.measure = "mse", family = "gaussian", standardize = TRUE)
+print(cv_lasso)
+
+cv_lasso$lambda.min
+cv_lasso$lambda.1se
+#we can choose to use lambda within 1 standard error or use the min lambda.
+#we use lambda min because 1se removes all variables
+
+head(cbind(cv_lasso$lambda, cv_lasso$cvm, cv_lasso$nzero))
+
+#fit_lasso_cv_sol0
+coef(cv_lasso, s = "lambda.min") 
+
+# 4 variables kept
+# we will see that these will be the same as ElasticNet variable selection
+
+sum(coef(cv_lasso,s = "lambda.min") != 0) # num of predictors that are not 0
+sum(coef(cv_lasso, s = "lambda.min") == 0) # num of variables where coef = 0
+
+plot(cv_lasso$lambda, cv_lasso$glmnet.fit$dev.ratio) # plot R squared vs lambda
+```
+
+```{r Variable Selection using LASSO}
+
+LASSO.fit <- lm(SP500 ~ GDPC1 + PRS85006023 + UMCSENT + PERMIT, Macro_SP_QoQ)
+#LASSO model, no L1 regularization
+
+#show model output
+summary(LASSO.fit)
+
+# cross-validation
+df[6,2:4] <- test_resample(LASSO.fit, Macro_SP_QoQ)
+
+```
+
+
+### ElasticNet
+```{r}
+set.seed(1)
+
+cv_5 = trainControl(method = "cv", number = 5)
+
+get_best_result = function(caret_fit) {
+  best = which(rownames(caret_fit$results) == rownames(caret_fit$bestTune))
+  best_result = caret_fit$results[best, ]
+  rownames(best_result) = NULL
+  best_result
+}
+
+```
+
+```{r sol0 ElasticNet}
+
+# caret trained ElasticNet model
+
+set.seed(1)
+
+sol0_elnet = train(
+  SP500 ~ ., data = Macro_SP_QoQ,
+  method = "glmnet", preProc = c("center", "scale"),
+  trControl = cv_5, tuneLength = 10)
+
+print(sol0_elnet)
+
+get_best_result(sol0_elnet)
+
+```
+
+```{r sol0 variable selection}
+
+# manually trained ElasticNet model
+
+QoQ_scaled <- as.data.frame(scale(Macro_SP_QoQ))
+
+set.seed(1)
+
+fit_lasso_cv_sol0 = cv.glmnet(x=as.matrix(QoQ_scaled[,-22]),y=as.matrix(QoQ_scaled$SP500),
+                    alpha=0.7,nfolds = 5,type.measure="mse",family="gaussian")
+
+
+coef(fit_lasso_cv_sol0, s=fit_lasso_cv_sol0$lambda.min)
+sum(coef(fit_lasso_cv_sol0) != 0) # num of predictors that are not 0
+sum(coef(fit_lasso_cv_sol0) == 0) # num of variables where coef = 0
+```
+
+```{r test elasticnet models}
+
+# caret trained model
+df[4,2:4] <- test_resample(sol0_elnet, Macro_SP_QoQ)
+
+test_resample_glmnet = function(fit, data) {
+  set.seed(42)
+  index <- createDataPartition(data$SP500, p = 0.9, times = 1, list = FALSE)
+  train <- data[index,]
+  test <- data[-index,]
+  testx <- as.matrix(test[,-22])
+  pred <- predict(fit, testx, s = fit$lambda.min)
+  postResample(pred, test$SP500)
+}
+
+# manually trained model
+df[5,2:4] <- test_resample_glmnet(fit_lasso_cv_sol0, Macro_SP_QoQ)
+
+```
+
+```{r cross validation results}
+
+tibble(df)
+
+# best model is still full model
+
+```
+
+--------------------------------
+#2. Models with PCA transformation and variable selections - Jari
+--------------------------------
+
+```{r data}
+
+set.seed(1)
+
+#-------------------------------------------------------------------------------
+# Load Quarterly Data
+#-------------------------------------------------------------------------------
+# Load  data
+df <-  read.csv("../Final Data Source/Macro_SP_QoQ.csv", fileEncoding="UTF-8-BOM")
+df <- subset(df,select=-c(date))
+
+# Remove Shiller_PE
+Macro_SP_QoQ <- subset(df, select=-c(shiller_PE))
+
+# summarize data
+head(Macro_SP_QoQ)
+```
+
+
+## PCA
+
+```{r PCA}
+
+SP500 <- Macro_SP_QoQ[22]
+
+# PCA object
+pca <- prcomp(Macro_SP_QoQ[,1:21], scale. = TRUE)
+summary(pca)
+
+# Calculate the variances and proportion of variances from the pca object
+var <- pca$sdev^2
+propvar <- var/sum(var)
+cum <- cumsum(propvar)
+
+# dataframe for plotting
+df_plot <- data.frame(propvar, cum)
+
+# Plots
+p1 <- ggplot(data=df_plot, mapping=aes(x = as.numeric(row.names(df_plot)), y=propvar))+
+          geom_col() + 
+          ggtitle('Proportion of Variance Explained') +
+          ylab('Proportion of Variance Explained') + xlab('Principal Component') +
+          ylim(0,1)
+          
+p2 <- ggplot(data=df_plot, mapping=aes(x = as.numeric(row.names(df_plot)), y=cum))+
+          geom_line(color='darkblue', size=0.8) + 
+          ggtitle('Cum. Prop. of Variance Explained') +
+          ylab('Cumulative Proportion of Variance Explained') + xlab('Principal Component') +
+          ylim(0,1)
+                     
+                     
+# Combine plots together and plot
+ggarrange(p1, p2, ncol = 2, nrow = 1)
+```
+
+
+## Testing how many principal components is needed
+
+```{r Testing different nro of components}
+# Creating empty vectors to store Rsquared values with and without CV
+Rsq <- vector(mode="numeric", length=21)    # Empty vector for Rsq
+Rsq_cv <- vector(mode="numeric", length=21) # Empty vector for Rsq with CV
+
+
+# Iterating over all the components
+for (k in 1:21) {
+  # Fitting model
+  pcs_   <- as.data.frame(pca$x[, 1:k])
+  data_  <- cbind(SP500, pcs_)
+  
+  # Model without CV
+  model_ <- lm(SP500~., data = data_)
+  # Calculating R-squared = 1 - SSEresiduals/SSEtotal
+  SStot <- sum((Macro_SP_QoQ$SP500 - mean(Macro_SP_QoQ$SP500))^2)
+  SSres_model <- sum(model_$residuals^2)
+  Rsq[k] <- (1-SSres_model/SStot)
+  
+  # Model with 10-fold cross-validation
+  train.control <- trainControl(method = "repeatedcv", number = 5, repeats=5)
+  model_cv <- train(SP500~., data = data_, 
+                    method = "lm", trControl = train.control)
+  # Calculating R-squared 
+  Rsq_cv[k] <- mean(model_cv$resample$Rsquared)
+}
+
+# Creating a dataframe or Rsquared with and without cross-validation
+df_rsq <- data.frame(Rsq, Rsq_cv)
+df_rsq
+
+# Highest Rsq_cv value
+which.max(df_rsq$Rsq_cv)
+```
+
+We achieve higher r-squared value at 11 components (0.23), but in general results are good after 7 principal components.
+
+```{r PCA Plots}
+
+# Plots
+p3 <- ggplot(data=df_rsq, mapping=aes(x = as.numeric(row.names(df_rsq)), y=Rsq))+
+  geom_col(fill='darkblue') + 
+  ggtitle('Rsq') +
+  ylab('Rsq') + xlab('Principal Component') +
+  ylim(0, 0.5)
+  
+p4 <- ggplot(data=df_rsq, mapping=aes(x = as.numeric(row.names(df_rsq)), y=Rsq_cv))+
+  geom_col(fill='darkblue') +  
+  ggtitle('Rsq_cv') +
+  ylab('Rsq_cv') + xlab('Principal Component') +
+  ylim(0, 0.5)
+  
+  
+# Combine plots together and plot
+ggarrange(p3, p4, ncol = 2, nrow = 1)
+
+```
+
+## Regression With first 11 PCAs
+
+```{r First 11 PCAs}
+
+#Create new data matrix with first 11 PCs and SP500 QoQ change
+df_11pcs <- cbind(SP500, pca$x[,1:11]) 
+
+# Create regression model
+pca_model <- lm(SP500 ~., data = df_11pcs)
+summary(pca_model)
+
+
+
+#-------------------------------------------------------------------------------
+# With 10 fold cross-validation
+train.control <- trainControl(method = "repeatedcv", number = 5, repeats=5)
+pca_model_cv <- train(SP500 ~., data = df_11pcs, 
+                   method = "lm",trControl = train.control)
+# Summary of the model
+print(pca_model_cv)
+```
+
+
+Tranforming PCA coefficients for original variables.
+
+```{r Coefficients of Original Variables}
+
+# Transform the PCA coefficients into coefficients for the original variables
+beta0 <- pca_model$coefficients[1]
+betas <- pca_model$coefficients[2:8]
+alphas <- pca$rotation[,1:7] %*% betas
+
+### Unscaling data
+originalAlpha <- alphas/sapply(Macro_SP_QoQ[,1:21],sd)
+originalBeta0 <- beta0 - sum(alphas*sapply(Macro_SP_QoQ[,1:21],mean)/sapply(Macro_SP_QoQ[,1:21],sd))
+
+originalAlpha
+
+```
+
+## Lasso Regression
+
+```{r Lasso}
+
+#Create new data matrix with PCAs and SP500 QoQ change
+df <- cbind(pca$x, SP500) 
+
+# Converting data frame to matrix, as this format is required in gmlnet
+x <- as.matrix(df[,1:21])
+y <- as.vector(df[,22])
+
+# Lasso regression
+lasso <- cv.glmnet(x, y, scale=TRUE, alpha = 1, nfolds = 5, type.measure="mse", family="gaussian") # Lasso when alpha=1
+
+# Output coefficients
+coef(lasso, s=lasso$lambda.min)
+
+```
+
+
+```{r Lasso Regression with Best Components}
+# Create regression model
+lasso_pca <- lm(SP500 ~ PC1+PC2+PC3+PC5+PC6, data = df)
+summary(lasso_pca)
+
+
+#-------------------------------------------------------------------------------
+# With 10 fold cross-validation
+train.control <- trainControl(method = "repeatedcv", number = 5, repeats=5)
+
+lasso_pca_cv <- train(SP500 ~ PC1+PC2+PC3+PC5+PC6, data = df, 
+                   method = "lm",trControl = train.control)
+                   
+# Summary of the model
+print(lasso_pca_cv)
+
+```
+
+## Elastic Net
+
+```{r Elastic Best Alpha}
+#We vary alpha in steps of 0.1 from 0 to 1 and calculate the resultant R-Squared values
+R2=c()
+for (i in 0:10) {
+  mod_elastic = cv.glmnet(x=x, y=y, alpha=i/10, nfolds = 5, type.measure="mse", family="gaussian")
+  
+#The deviance(dev.ratio ) shows the percentage of deviance explained, 
+#(equivalent to r squared in case of regression)
+  R2 = cbind(R2,mod_elastic$glmnet.fit$dev.ratio[which(mod_elastic$glmnet.fit$lambda == mod_elastic$lambda.min)])
+  
+}
+
+alpha_best = (which.max(R2)-1)/10
+alpha_best  
+
+```
+
+##Lets build the model using this alpha value.
+```{r Elastic Net Coef}
+Elastic_net=cv.glmnet(x=x, y=y, alpha=alpha_best, nfolds = 5, type.measure="mse", family="gaussian")
+
+coef(Elastic_net, s=Elastic_net$lambda.min)
+```
+
+
+```{r Elastic Net Regression with Best Components}
+
+# Create regression model
+elastic_pca <- lm(SP500 ~ PC1+PC2+PC3+PC5+PC6+PC8+PC9+PC10+PC11+PC12+PC15+PC19+PC21, data = df)
+summary(elastic_pca)
+
+
+#-------------------------------------------------------------------------------
+# With 10 fold cross-validation
+train.control <- trainControl(method = "repeatedcv", number = 5, repeats=5)
+
+elastic_pca_cv <- train(SP500 ~ PC1+PC2+PC3+PC5+PC6+PC8+PC9+PC10+PC11+PC12+PC15+PC19+PC21, data = df, 
+                   method = "lm",trControl = train.control)
+                   
+# Summary of the model
+print(elastic_pca_cv)
+
+```
+```{r Elastic Net Regression Only Significant Variables}
+
+# Create regression model
+elastic_pca2 <- lm(SP500 ~ PC1+PC2+PC3+PC5+PC6+PC19, data = df)
+summary(elastic_pca2)
+
+
+
+#-------------------------------------------------------------------------------
+# With 10 fold cross-validation
+train.control <- trainControl(method = "repeatedcv", number = 5, repeats=5)
+
+elastic_pca_cv2 <- train(SP500 ~ PC1+PC2+PC3+PC5+PC6+PC19, data = df, 
+                   method = "lm",trControl = train.control)
+                   
+# Summary of the model
+print(elastic_pca_cv2)
+
+```
+
+
+```{r Stepwise}
+#Create new data matrix with PCAs and SP500 QoQ change
+
+ctrl <- trainControl(method='repeatedcv', number = 5, repeats = 5)
+set.seed(1)
+
+stepwise <- train(SP500~., data = df, "lmStepAIC", scope = 
+                      list(lower = SP500~1, upper = SP500~.), direction = "backward",trControl=ctrl)
+                      
+```
+
+```{r Stepwise with Best Components}
+
+# Stepwise regression model
+stepwise_pca <- lm(SP500 ~ PC1+PC2+PC3+PC5+PC6+PC8+PC9+PC10+PC12+PC15+PC19, data = df)
+summary(stepwise_pca)
+
+
+
+#-------------------------------------------------------------------------------
+# With 10 fold cross-validation
+train.control <- trainControl(method = "repeatedcv", number = 5, repeats=5)
+
+stepwise_pca_cv <- train(SP500 ~ PC1+PC2+PC3+PC5+PC6+PC8+PC9+PC10+PC12+PC15+PC19, data = df, 
+                   method = "lm",trControl = train.control)
+                   
+# Summary of the model
+print(stepwise_pca_cv)
+```
+
+```{r Stepwise with Only Significant Variables}
+
+# Stepwise regression model
+stepwise_pca <- lm(SP500 ~ PC1+PC2+PC3+PC5+PC6+PC19, data = df)
+summary(stepwise_pca)
+
+
+#-------------------------------------------------------------------------------
+# With 10 fold cross-validation
+train.control <- trainControl(method = "repeatedcv", number = 5, repeats=5)
+
+stepwise_pca_cv <- train(SP500 ~ PC1+PC2+PC3+PC5+PC6+PC19, data = df, 
+                   method = "lm",trControl = train.control)
+                   
+# Summary of the model
+print(stepwise_pca_cv)
+
+```
+
+
+## Testing the impact of lead-lag 
+Testing if we achieve a better r-squared by leading and lagging SP500 QoQ by 1-2 quarters. Keeping 7 PCAs selected.
+
+```{r Different Times}
+
+# lead and lag by 2 quarters
+df$SP500_lead1 <- lead(df$SP500, n=1)
+df$SP500_lead2 <- lead(df$SP500, n=2)
+df$SP500_lag1 <- lag(df$SP500, n=1)
+df$SP500_lag2 <- lag(df$SP500, n=2)
+
+# Drop na's
+dfx <- drop_na(df,c(SP500_lead1, SP500_lead2, SP500_lag1, SP500_lag2))
+
+# Fitting model with 7 principal components
+model_lead1 <- train(SP500_lead1 ~., data = dfx, method = "lm", trControl = train.control)
+model_lead2 <- train(SP500_lead2 ~., data = dfx, method = "lm", trControl = train.control)
+model_lag1  <- train(SP500_lag1 ~., data = dfx, method = "lm", trControl = train.control)
+model_lag2  <- train(SP500_lag2 ~., data = dfx, method = "lm", trControl = train.control)
+
+# Print results
+mean(pca_model_cv$resample$Rsquared)
+mean(model_lead1$resample$Rsquared)
+mean(model_lead2$resample$Rsquared)
+mean(model_lag1$resample$Rsquared)
+mean(model_lag2$resample$Rsquared)
+```
+
+We achieve the best results with the regular quarterly data.
+
+
+```{r linear regression}
+
+# linear regression
+lm_model <- lm(SP500 ~ UMCSENT+PERMIT, data = Macro_SP_QoQ)
+summary(lm_model)
+
+
+#-------------------------------------------------------------------------------
+# With cross-validation
+train.control <- trainControl(method = "repeatedcv", number = 5, repeats=5)
+
+lm_model_cv <- train(SP500 ~ UMCSENT+PERMIT, data = Macro_SP_QoQ, 
+                   method = "lm",trControl = train.control)
+                   
+# Summary of the model
+print(lm_model_cv)
+
+```
+

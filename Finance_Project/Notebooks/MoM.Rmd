@@ -1,0 +1,883 @@
+---
+title: "Models on Month over Month dataset"
+author: "Liangqu Chen, David Change, Thomas Byrne"
+output: html_document
+---
+
+```{r "knitr config", cache = FALSE, include=FALSE}
+require("knitr")
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Load Libraries and Data}
+
+#-------------------------------------------------------------------------------
+# Libraries
+#-------------------------------------------------------------------------------
+if (!require(tidyverse)) install.packages('tidyverse')
+library(tidyverse)
+if (!require(corrplot)) install.packages('corrplot')
+library(corrplot)
+if (!require(leaps)) install.packages('leaps')
+library(leaps)
+if (!require(caret)) install.packages('caret')
+library(caret)
+if (!require(glmnet)) install.packages('glmnet')
+library(glmnet)
+
+#-------------------------------------------------------------------------------
+# Load Monthly Data
+#-------------------------------------------------------------------------------
+# Load  data
+
+Macro_SP_MoM <- read.csv('~/Documents/GitHub/Team-11/Deliverables/Phase 4/Final Data Source/Macro_SP_MoM.csv')
+
+# Remove Date column and Shiller_PE
+Macro_SP_MoM <- subset(Macro_SP_MoM, select=-c(date))
+Macro_SP_MoM <- Macro_SP_MoM[-21]
+
+# check data
+head(Macro_SP_MoM)
+summary(Macro_SP_MoM)
+```
+
+--------------------------------
+##1. Models without PCA transformation, with variable selection
+--------------------------------
+
+Multivariate Linear Regression model without variable Selection
+
+```{r full model without variable selection}
+
+lm.fit <- lm(SP500 ~ ., Macro_SP_MoM)
+
+#show model output and plot to check against linear regression assumptions
+summary(lm.fit)
+plot(lm.fit)
+
+#create null and full models for stepwise regression
+m0 <- lm(SP500 ~ 1, data = Macro_SP_MoM)
+m1 <- lm(SP500 ~ ., data = Macro_SP_MoM)
+
+```
+
+Adjusted R squared for full linear regression model without variable selection is 0.1578. 
+
+Let's see if variable selection will help improve on this model.
+
+### Stepwise Regression
+
+```{r forward stepwise regression}
+forward <- step(m0, scope = list(lower = m0, upper = m1),
+                direction = "forward", k = log(NROW(Macro_SP_MoM$SP500)), trace = 0)
+# complete forward stepwise regression
+# use BIC for variable selection penalty
+
+summary(forward)
+forward$anova
+#show variables added or removed
+
+extractAIC(forward)
+# show BIC
+```
+
+Forward stepwise regression model selects 3 variables: UMCSENT, ICSA, DXY
+
+```{r backward stepwise regression}
+
+backward <- step(m1, scope = list(lower = m0, upper = m1),
+                direction = "backward", k = log(NROW(Macro_SP_MoM$SP500)), trace = 0)
+# complete backward stepwise regression
+# use BIC for variable selection penalty
+
+summary(backward)
+backward$anova
+#show variables added or removed
+
+extractAIC(backward) 
+# show BIC
+```
+
+Backward stepwise regression model selects 5 variables: UMCSENT, ICSA, DXY, PAYEMS, PCE
+
+```{r bidrectional stepwise regression}
+both <- step(m0, scope = list(lower = m0, upper = m1),
+                direction = "both", k = log(NROW(Macro_SP_MoM$SP500)), trace = 0)
+# complete bidirectional stepwise regression
+# use BIC for variable selection penalty
+
+summary(both)
+both$anova
+#show variables added or removed
+
+extractAIC(both) 
+# show BIC
+```
+Bidirectional stepwise regression model selects 3 variables: UMCSENT, ICSA, DXY.
+
+Of the three stepwise models, backward stepwise regression performed best, with adjusted R Squared of 0.1455.
+
+```{r exhaustive search using leaps}
+
+leaps_model <- regsubsets(Macro_SP_MoM$SP500 ~ ., 
+                                 data = Macro_SP_MoM, nvmax = 19)
+s <- summary(leaps_model)
+print(s)
+
+#we show the impact of number of variables selected using different information criterion: adj r2, AIC, BIC
+
+plot(leaps_model, scale = "bic")
+
+plot(s$adjr2, xlab = "No. of variables", ylab = "Adjusted R Squared")
+points(which.max(s$adjr2), s$adjr2[which.max(s$adjr2)],pch = 19, col = 'red')
+
+# no real difference in adjusted R squared or Mallow's Criterion based on number of predictors after about 9 variables selected
+
+plot(s$cp, xlab = "No. of variables", ylab = "AIC")
+points(which.min(s$cp), s$cp[which.min(s$cp)],pch = 19, col = 'red')
+
+plot(s$bic, xlab = "No. of variables", ylab = "BIC")
+points(which.min(s$bic), s$bic[which.min(s$bic)],pch = 19, col = 'red')
+
+# Using BIC, p = 5 predictor variables. Since we don't see significant improvement in final model, we choose to use BIC with 5 variables selected.
+
+final_leaps <- regsubsets(Macro_SP_MoM$SP500 ~ ., 
+                                 data = Macro_SP_MoM, nvmax = 9)
+plot(final_leaps, scale = "bic")
+# this is same model as backward stepwise regression model using BIC
+
+```
+
+
+#### Final Full Model and Stepwise Model
+
+```{r}
+#helper function for cross validation
+
+test_resample = function(fit, data) {
+  set.seed(42)
+  index <- createDataPartition(data$SP500, p = 0.9, times = 1, list = FALSE)
+  train <- data[index,]
+  test <- data[-index,]
+  pred <- predict(fit, test)
+  postResample(pred, test$SP500)
+}
+
+```
+
+
+```{r}
+
+Macro_SP_MoM_0m0 <- lm(SP500 ~ 1, data = Macro_SP_MoM)
+Macro_SP_MoM_0m1 <- lm(SP500 ~ ., data = Macro_SP_MoM)
+
+lm.fit <- lm(SP500 ~ ., Macro_SP_MoM)
+#full model
+
+stepwise.fit <- step(Macro_SP_MoM_0m1, scope = list(lower = Macro_SP_MoM_0m0, upper = Macro_SP_MoM_0m1),
+                direction = "both", k = log(NROW(Macro_SP_MoM$SP500)), trace = 0)
+#use backward stepwise (5 variable) model as final fitted model
+
+results <- data.frame("Model" = c("Full Model", "Stepwise",
+                             "LASSO", "ElasticNet"),
+                 "RMSE" = rep(0,4),
+                 "RSquared" = rep(0,4),
+                 "MAE" = rep(0,4))
+
+results[1,2:4] <- test_resample(lm.fit, Macro_SP_MoM)
+results[2,2:4] <- test_resample(stepwise.fit, Macro_SP_MoM)
+
+```
+
+### ElasticNet and LASSO Models
+
+```{r LASSO}
+
+set.seed(42)
+
+X = model.matrix(SP500 ~ ., data = Macro_SP_MoM)[,-1]
+Y = Macro_SP_MoM$SP500
+
+model_lasso <- glmnet(x = X, y = Y, alpha = 1, nfolds = 10,
+type.measure = "mse", family = "gaussian", standardize = TRUE)
+
+print(model_lasso)
+plot(model_lasso)
+
+```
+
+```{r LASSO variable selection part 1}
+
+
+set.seed(42)
+
+cv_lasso <- cv.glmnet(x = X, y = Y, alpha = 1, nfolds = 10,
+type.measure = "mse", family = "gaussian", standardize = TRUE)
+print(cv_lasso)
+
+cv_lasso$lambda.min
+cv_lasso$lambda.1se
+#we can choose to use lambda within 1 standard error or use the min lambda.
+#we use lambda min because 1se removes all variables
+
+head(cbind(cv_lasso$lambda, cv_lasso$cvm, cv_lasso$nzero))
+
+#fit_lasso_cv_sol0
+coef(cv_lasso, s = "lambda.min") # 2 variables kept: UMCSENT and ICSA
+
+sum(coef(cv_lasso,s = "lambda.min") != 0) # num of predictors that are not 0
+sum(coef(cv_lasso, s = "lambda.min") == 0) # num of variables where coef = 0
+
+plot(cv_lasso$lambda, cv_lasso$glmnet.fit$dev.ratio) # plot R squared vs lambda
+```
+```{r Variable Selection using LASSO}
+
+LASSO.fit <- lm(SP500 ~ UMCSENT + ICSA, Macro_SP_MoM)
+#LASSO model, no L1 regularization
+
+#show model output
+summary(LASSO.fit)
+
+# cross-validation
+results[3,2:4] <- test_resample(LASSO.fit, Macro_SP_MoM)
+
+```
+
+```{r helper function for training}
+set.seed(42)
+
+cv_5 = trainControl(method = "cv", number = 5)
+
+get_best_result = function(caret_fit) {
+  best = which(rownames(caret_fit$results) == rownames(caret_fit$bestTune))
+  best_result = caret_fit$results[best, ]
+  rownames(best_result) = NULL
+  best_result
+}
+
+```
+
+```{r ElasticNet}
+
+set.seed(42)
+
+sol0_elnet = train(
+  SP500 ~ ., data = Macro_SP_MoM,
+  method = "glmnet", preProc = c("center", "scale"),
+  trControl = cv_5, tuneLength = 10)
+
+print(sol0_elnet)
+
+get_best_result(sol0_elnet)
+
+#best alpha is 0.7, very small lambda
+```
+
+```{r ElasticNet variable selection}
+
+
+X_sol0 = model.matrix(SP500 ~ ., data = Macro_SP_MoM)[,-1]
+Y_sol0 = Macro_SP_MoM$SP500
+
+set.seed(42)
+
+fit_lasso_cv_sol0 <- cv.glmnet(X_sol0, Y_sol0, 
+                               alpha = get_best_result(sol0_elnet)[1,1], 
+                               family = "gaussian", standardize = TRUE)
+fit_lasso_cv_sol0
+
+coef(fit_lasso_cv_sol0, s = "lambda.min")
+# kept 2 variables similar to LASSO 
+
+sum(coef(fit_lasso_cv_sol0, s = "lambda.min") != 0) # num of predictors that are not 0
+sum(coef(fit_lasso_cv_sol0, s = "lambda.min") == 0) # num of variables where coef = 0
+```
+
+```{r test elasticnet models}
+test_resample_glmnet = function(fit, data) {
+  set.seed(42)
+  index <- createDataPartition(data$SP500, p = 0.9, times = 1, list = FALSE)
+  train <- data[index,]
+  test <- data[-index,]
+  testx <- as.matrix(test[,-22])
+  pred <- predict(fit, testx, s = fit$lambda.min)
+  postResample(pred, test$SP500)
+}
+
+results[4,2:4] <- test_resample_glmnet(sol0_elnet, Macro_SP_MoM)
+
+```
+
+### Cross-Validation Results
+
+```{r show cross validation results elasticnet models}
+
+tibble(results)
+```
+
+--------------------------------
+##2. Models with PCA transformation and variable selections
+--------------------------------
+
+As shown in correlation plots in the previous exploratory data analysis, there are some strong collinearity between independent variables. Some of the problematic pairs are:
+
+UNRATE*  with W068RCQ027SBEA
+UNRATE*  with GDP* 
+UNRATE*  with GDPC1* 
+UNRATE*  with INDPRO
+UNRATE*  with PAYEMS* 
+UNRATE*  with PCE
+GDP*           with BOGZ1FA895050005Q* 
+GDP*           with GDPC1* 
+GDPC1*    with BOGZ1FA895050005Q* 
+PAYEMS*  with W068RCQ027SBEA
+PAYEMS*  with GDPC1* 
+PAYEMS*  with INDPRO
+PAYEMS*  with PCE              *:VIF>5
+
+Models with collinearity tend to have bigger confidence intervals thus we might not be able to reject H0.
+Another side effect from collinearity we might observe is the regression coefficients are not significantly from zero, while R2 is high.
+And as a result, we can clearly separate out the individual effects of collinear variables on the response.
+
+
+Thus, we planed to use Principal Components Analysis might be deal with collinearity without removing any predictors beforehand.
+
+```{r data preparation and PCA transformation}
+# load the data
+Macro_SP_MoM <- read.csv('~/Documents/GitHub/Team-11/Deliverables/Phase 4/Final Data Source/Macro_SP_MoM.csv')
+
+# remove date
+Macro_SP_MoM <- subset(Macro_SP_MoM, select=-c(date))
+
+MoM <- Macro_SP_MoM
+
+# convert to pca axis with the response
+# remove Shiller PE as its numerator is basically the SP500 index
+MoM_pred <- subset(MoM,select=-c(SP500, shiller_PE))
+pca_MoM <- prcomp(MoM_pred, scale=TRUE)
+
+# summary of Principal Component Analysis
+summary(pca_MoM)
+```
+
+21 PCs are created by centering the axis to remove collinearity.
+In order to decide how many PCs to choose, let's take a look at how much of variances are explained by the number PCs
+
+```{r}
+pca_MoM.sum <- summary(pca_MoM)
+plot(pca_MoM.sum[['importance']][3,], xlab='Prinpcipal Component', 
+     ylab='Cumulative Proportion of Variance Explained', 
+     type = 'b')
+```
+
+It shows the speed of gaining explained variance slows down at 4 and becomes even slower at 15. 
+5 PCs can explain about 60% of the variance and 15 for 90%+.
+Thus, 5 and 15 PCs are the number of PCs we try at first to fit a linear regression model.
+
+```{r}
+
+PC5 <- pca_MoM$x[,1:5]
+PC5<- cbind(PC5,MoM[,23])
+
+PC15 <- pca_MoM$x[, 1:15]
+PC15 <- cbind(PC15,MoM[,23])
+```
+
+```{r}
+# fit linear regression with 5 PCs
+
+PC5.lm <- lm(V6~., data= as.data.frame(PC5))
+
+summary(PC5.lm)
+
+```
+
+adjusted R2 is 0.075. Only PC4 is statiscally significant
+
+```{r}
+# fit linear regression with 5 PCs
+
+PC15.lm <- lm(V16~., data= as.data.frame(PC15))
+
+summary(PC15.lm)
+
+```
+
+adjusted R2 is 0.14. PC1, PC4, PC6, PC7, PC10, PC12 is statistically significant
+
+Now, we convert them to the parameters of the original variables
+
+```{r}
+
+### Principal Component 5
+# convert to original axis
+beta0 <- PC5.lm$coefficients[1]
+betas <- PC5.lm$coefficients[2:6]
+alphas <- pca_MoM$rotation[,1:5] %*% betas
+
+# unscale
+originalAlpha <- alphas/sapply(MoM_pred,sd)
+originalBeta0 <- beta0 - sum(alphas*sapply(MoM_pred,mean)/sapply(MoM_pred,sd))
+
+originalAlpha
+originalBeta0
+
+parameters<-originalAlpha
+```
+
+```{r}
+### Principal Component 15
+# convert to original axis
+beta0 <- PC15.lm$coefficients[1]
+betas <- PC15.lm$coefficients[2:16]
+alphas <- pca_MoM$rotation[,1:15] %*% betas
+
+# unscale
+originalAlpha <- alphas/sapply(MoM_pred,sd)
+originalBeta0 <- beta0 - sum(alphas*sapply(MoM_pred,mean)/sapply(MoM_pred,sd))
+
+originalAlpha
+originalBeta0
+
+parameters <- cbind(parameters,originalAlpha)
+```
+
+### Variable Selection
+
+Now, it is time to try different models for picking independent variables
+  Step wise regression
+  Lasso
+  Elastic Net
+  
+```{r include=FALSE}
+
+# step wise
+library(caret)
+
+PC_SP500 <-as.data.frame(cbind(pca_MoM$x, MoM[,23]))
+colnames(PC_SP500)[22]<- 'SP500'
+
+ctrl <- trainControl(method='repeatedcv', number = 5, repeats = 5)
+set.seed(0)
+
+stepwise <- train(SP500~., data = PC_SP500, "lmStepAIC", scope = 
+                      list(lower = SP500~1, upper = SP500~.), direction = "backward",trControl=ctrl)
+
+```
+
+RESULT: 
+Step:  AIC=-4508.2
+.outcome ~ PC1 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PC11 + 
+    PC12 + PC16 + PC19
+
+       Df Sum of Sq     RSS     AIC
+<none>              0.70189 -4508.2
+- PC5   1  0.003429 0.70532 -4507.0
+- PC19  1  0.003975 0.70587 -4506.5
+- PC11  1  0.004170 0.70606 -4506.3
+- PC16  1  0.004275 0.70617 -4506.2
+- PC9   1  0.004837 0.70673 -4505.6
+- PC6   1  0.005266 0.70716 -4505.2
+- PC8   1  0.006558 0.70845 -4504.0
+- PC1   1  0.007705 0.70960 -4503.0
+- PC12  1  0.010636 0.71253 -4500.2
+- PC10  1  0.019601 0.72150 -4492.0
+- PC7   1  0.028387 0.73028 -4483.9
+- PC4   1  0.053542 0.75544 -4461.5
+
+
+
+```{r}
+
+PC_SP500.lm_stepwise <- lm(SP500~PC1+PC4+PC5+PC6+PC7+PC8+PC9+PC10+PC11+PC12+PC16+PC19, data = PC_SP500)
+summary(PC_SP500.lm_stepwise)
+
+```
+
+Use less PCs but it reached higher R2 than the first 15 PCs
+
+```{r}
+### stepwise 
+# convert to original axis
+beta0 <- PC_SP500.lm_stepwise$coefficients[1]
+betas <- PC_SP500.lm_stepwise$coefficients[2:13]
+alphas <- pca_MoM$rotation[,c(1,4,5,6,7,8,9,10,11,12,16,19)] %*% betas
+
+# unscale
+originalAlpha <- alphas/sapply(MoM_pred,sd)
+originalBeta0 <- beta0 - sum(alphas*sapply(MoM_pred,mean)/sapply(MoM_pred,sd))
+
+originalAlpha
+originalBeta0
+
+parameters <- cbind(parameters,originalAlpha)
+```
+
+TRY lasso for regularization
+
+```{r}
+
+library(glmnet)
+set.seed(0)
+lasso <-cv.glmnet(x=as.matrix(PC_SP500[,-22]),y=as.matrix(PC_SP500$SP500),alpha=1,
+                nfolds = 5,type.measure="mse",family="gaussian")
+
+#Output the coefficients of the variables selected by lasso
+
+coef(lasso, s=lasso$lambda.min)
+
+```
+
+Let's see what the model looks like
+
+```{r}
+PC_SP500.lm_lasso <- lm(SP500~PC1+PC4+PC6+PC7+PC8+PC9+PC10+PC12, PC_SP500)
+
+summary(PC_SP500.lm_lasso)
+```
+
+8 PCs are picked and they are all significant
+
+```{r}
+### lasso
+# convert to original axis
+beta0 <- PC_SP500.lm_lasso$coefficients[1]
+betas <- PC_SP500.lm_lasso$coefficients[2:9]
+alphas <- pca_MoM$rotation[,c(1,4,6,7,8,9,10,12)] %*% betas
+
+# unscale
+originalAlpha <- alphas/sapply(MoM_pred,sd)
+originalBeta0 <- beta0 - sum(alphas*sapply(MoM_pred,mean)/sapply(MoM_pred,sd))
+
+originalAlpha
+originalBeta0
+parameters <- cbind(parameters,originalAlpha)
+```
+
+Elastic Net
+
+```{r}
+R2_PC=c()
+set.seed(0)
+for (i in 0:10) {
+  model = cv.glmnet(x=as.matrix(PC_SP500[,-22]),y=as.matrix(PC_SP500$SP500),
+                    alpha=i/10,nfolds = 5,type.measure="mse",family="gaussian")
+  
+  #The deviance(dev.ratio ) shows the percentage of deviance explained, 
+  #(equivalent to r squared in case of regression)
+  
+  R2_PC = cbind(R2_PC,model$glmnet.fit$dev.ratio[which(model$glmnet.fit$lambda == model$lambda.min)])
+  
+}
+
+R2_PC
+```
+
+To reach the highest R2, we can set the alpha to 0.1
+
+```{r}
+set.seed(0)
+elasticNet<- cv.glmnet(x=as.matrix(PC_SP500[,-22]), y=as.matrix(PC_SP500$SP500),
+                      alpha = 0.1, nfolds=5, type.measure= 'mse', family = 'gaussian')
+coef(elasticNet, s=elasticNet$lambda.min)
+```
+
+```{r}
+PC_SP500.lm_elasticNet0.1 <- lm(SP500~PC1+PC4+PC5+PC6+PC7+PC8+PC9+PC10+PC11+PC12+PC13+PC16+PC19, PC_SP500)
+
+summary(PC_SP500.lm_elasticNet0.1)
+```
+
+```{r}
+### elastic net 
+# convert to original axis
+beta0 <- PC_SP500.lm_elasticNet0.1$coefficients[1]
+betas <- PC_SP500.lm_elasticNet0.1$coefficients[2:14]
+alphas <- pca_MoM$rotation[,c(1,4,5,6,7,8,9,10,11,12,13,16,19)] %*% betas
+
+# unscale
+originalAlpha <- alphas/sapply(MoM_pred,sd)
+originalBeta0 <- beta0 - sum(alphas*sapply(MoM_pred,mean)/sapply(MoM_pred,sd))
+
+originalAlpha
+originalBeta0
+parameters <- cbind(parameters,originalAlpha)
+```
+
+visualization for parameters
+```{r}
+
+library(reshape2)
+
+colnames(parameters) <-c('first_5_PCs', 'first_15_PCs', 'stepwise','lasso','Ela0.1')
+parameters <- as.data.frame(parameters)
+
+parameters$macro <-rownames(parameters)
+rownames(parameters) <- 1:nrow(parameters)
+
+# flatten the columns
+parameters <- melt(parameters, id.vars=c('macro'))
+
+
+
+library(ggplot2)
+library("ggsci")
+
+ggplot(parameters, aes(x=variable,y=value,fill=macro))+
+    geom_bar(stat='identity', position='fill')+
+    theme_grey()
+
+```
+From the five models,we can find PRS85006023 has the strongest positive impact on the SP500 returns while most of models are showing negative influences on SP500 from CPIAUCSL and CPILFESL. 
+
+### PCA Models Cross-Validation
+
+Get cross-validated R2 for each model to see overfitting.
+
+```{r}
+
+cv_R2 <- c()
+SStot <- sum((PC_SP500$SP500 - mean(PC_SP500$SP500))^2)
+totsse <- 0
+for(i in 1:nrow(PC_SP500)) {
+  mod = lm(SP500 ~ PC1+PC2+PC3+PC4+PC5, data = PC_SP500[-i,])
+  pred_i <- predict(mod,newdata=PC_SP500[i,])
+  totsse <- totsse + ((pred_i - PC_SP500[i,22])^2)
+}
+cv_R2_first5 <- 1 - totsse/SStot
+
+
+cv_R2 <-cbind(cv_R2,cv_R2_first5)
+
+totsse <- 0
+for(i in 1:nrow(PC_SP500)) {
+  mod = lm(SP500 ~ PC1+PC2+PC3+PC4+PC5+PC6+PC6+PC7+PC8+PC9+PC10+PC11+PC12+PC13+PC14+PC15, data = PC_SP500[-i,])
+  pred_i <- predict(mod,newdata=PC_SP500[i,])
+  totsse <- totsse + ((pred_i - PC_SP500[i,22])^2)
+}
+cv_R2_first15 <- 1 - totsse/SStot
+
+
+cv_R2 <-cbind(cv_R2,cv_R2_first15)
+
+totsse <- 0
+for(i in 1:nrow(PC_SP500)) {
+  mod = lm(SP500~PC1+PC4+PC5+PC6+PC7+PC8+PC9+PC10+PC11+PC12+PC16+PC19, data = PC_SP500[-i,])
+  pred_i <- predict(mod,newdata=PC_SP500[i,])
+  totsse <- totsse + ((pred_i - PC_SP500[i,22])^2)
+}
+cv_R2_stepwise <- 1 - totsse/SStot
+
+
+cv_R2 <-cbind(cv_R2,cv_R2_stepwise)
+
+totsse <- 0
+for(i in 1:nrow(PC_SP500)) {
+  mod = lm(SP500~PC1+PC4+PC6+PC7+PC8+PC9+PC10+PC12, data = PC_SP500[-i,])
+  pred_i <- predict(mod,newdata=PC_SP500[i,])
+  totsse <- totsse + ((pred_i - PC_SP500[i,22])^2)
+}
+cv_R2_lasso <- 1 - totsse/SStot
+
+
+cv_R2 <-cbind(cv_R2,cv_R2_lasso)
+
+totsse <- 0
+for(i in 1:nrow(PC_SP500)) {
+  mod = lm(SP500~PC1+PC4+PC5+PC6+PC7+PC8+PC9+PC10+PC11+PC12+PC13+PC16+PC19, data = PC_SP500[-i,])
+  pred_i <- predict(mod,newdata=PC_SP500[i,])
+  totsse <- totsse + ((pred_i - PC_SP500[i,22])^2)
+}
+cv_R2_elasticNet <- 1 - totsse/SStot
+
+
+cv_R2 <-cbind(cv_R2,cv_R2_elasticNet)
+
+cv_R2
+```
+
+--------------------------------
+## 3. Do Market Returns Lag or Lead Macroeconomic Variables? 
+--------------------------------
+
+In the market, there are investors who usually price in their expection and they bet the directions of macroeconomic indexes beforehand. As a result, S&P 500 index shows the expectation. On the other hand, it sometime takes time for market to interpret and react to macroeconomic data. Thus we might see a delayed reaction of the market. To study whether the market intends to price in expections or has delayed reaction to macroeconomic data, we shift S&P 500 index by a range of [-12,12] months relative to the independent variables to examine the change of variance explained.
+
+### Data Preparation and Transformations
+
+```{r Lag/Lead Data Preparation}
+
+# load the data again
+Macro_SP_MoM <- read.csv('~/Documents/GitHub/Team-11/Deliverables/Phase 4/Final Data Source/Macro_SP_MoM.csv')
+
+# remove date
+Macro_SP_MoM <- subset(Macro_SP_MoM, select=-c(date))
+
+# remove outliers
+outliers <- c(249, 250, 501, 637)
+MoM <- Macro_SP_MoM[-outliers,]
+
+# remove shiller_PE and get predictor sets
+MoM_pred <- subset(MoM,select=-c(SP500, shiller_PE))
+
+# get response SP500 index set
+MoM_res <- subset(MoM,select=c(SP500))
+
+```
+
+```{r Lag/Lead Data Transformormation}
+
+# shift the SP500 D:delayed reaction, P:Price in expectation
+D12 <- cbind(MoM_pred[1:646,],MoM_res[13:658,])
+colnames(D12)[ncol(D12)] <- 'SP500'
+
+D11 <- cbind(MoM_pred[1:647,],MoM_res[12:658,])
+colnames(D11)[ncol(D11)] <- 'SP500'
+
+D10 <- cbind(MoM_pred[1:648,],MoM_res[11:658,])
+colnames(D10)[ncol(D10)] <- 'SP500'
+
+D09 <- cbind(MoM_pred[1:649,],MoM_res[10:658,])
+colnames(D09)[ncol(D09)] <- 'SP500'
+
+D08 <- cbind(MoM_pred[1:650,],MoM_res[9:658,])
+colnames(D08)[ncol(D08)] <- 'SP500'
+
+D07 <- cbind(MoM_pred[1:651,],MoM_res[8:658,])
+colnames(D07)[ncol(D07)] <- 'SP500'
+
+D06 <- cbind(MoM_pred[1:652,],MoM_res[7:658,])
+colnames(D06)[ncol(D06)] <- 'SP500'
+
+D05 <- cbind(MoM_pred[1:653,],MoM_res[6:658,])
+colnames(D05)[ncol(D05)] <- 'SP500'
+
+D04 <- cbind(MoM_pred[1:654,],MoM_res[5:658,])
+colnames(D04)[ncol(D04)] <- 'SP500'
+
+D03 <- cbind(MoM_pred[1:655,],MoM_res[4:658,])
+colnames(D03)[ncol(D03)] <- 'SP500'
+
+D02 <- cbind(MoM_pred[1:656,],MoM_res[3:658,])
+colnames(D02)[ncol(D02)] <- 'SP500'
+
+D01 <- cbind(MoM_pred[1:657,],MoM_res[2:658,])
+colnames(D01)[ncol(D01)] <- 'SP500'
+
+D00 <- cbind(MoM_pred[1:658,],MoM_res[1:658,])
+colnames(D00)[ncol(D00)] <- 'SP500'
+
+P01 <- cbind(MoM_pred[2:658,],MoM_res[1:657,])
+colnames(P01)[ncol(P01)] <- 'SP500'
+
+P02 <- cbind(MoM_pred[3:658,],MoM_res[1:656,])
+colnames(P02)[ncol(P02)] <- 'SP500'
+
+P03 <- cbind(MoM_pred[4:658,],MoM_res[1:655,])
+colnames(P03)[ncol(P03)] <- 'SP500'
+
+P04 <- cbind(MoM_pred[5:658,],MoM_res[1:654,])
+colnames(P04)[ncol(P04)] <- 'SP500'
+
+P05 <- cbind(MoM_pred[6:658,],MoM_res[1:653,])
+colnames(P05)[ncol(P05)] <- 'SP500'
+
+P06 <- cbind(MoM_pred[7:658,],MoM_res[1:652,])
+colnames(P06)[ncol(P06)] <- 'SP500'
+
+P07 <- cbind(MoM_pred[8:658,],MoM_res[1:651,])
+colnames(P07)[ncol(P07)] <- 'SP500'
+
+P08 <- cbind(MoM_pred[9:658,],MoM_res[1:650,])
+colnames(P08)[ncol(P08)] <- 'SP500'
+
+P09 <- cbind(MoM_pred[10:658,],MoM_res[1:649,])
+colnames(P09)[ncol(P09)] <- 'SP500'
+
+P10 <- cbind(MoM_pred[11:658,],MoM_res[1:648,])
+colnames(P10)[ncol(P10)] <- 'SP500'
+
+P11 <- cbind(MoM_pred[12:658,],MoM_res[1:647,])
+colnames(P11)[ncol(P11)] <- 'SP500'
+
+P12 <- cbind(MoM_pred[13:658,],MoM_res[1:646,])
+colnames(P12)[ncol(P12)] <- 'SP500'
+```
+
+
+### Lag/Lead Model Training
+
+Now we can train a linear model with all the dataset and record the R2
+
+```{r Lag/Lead Model Training}
+
+R2_all <-c()
+
+datasets <- list(P12,P11,P10,P09,P08,P07,P06,P05,P04,P03,P02,P01,D00,D01,D02,D03,D04,D05,D06,D07,D08,D09,D10,D11,D12)
+
+for (d in datasets) {
+  R2_all <- cbind(R2_all, summary(lm(SP500~., d))$adj.r.squared)
+}
+
+R2_all <-as.data.frame(R2_all)
+names(R2_all) <-c('P12','P11','P10','P09','P08','P07','P06','P05','P04','P03','P02','P01','D00','D01'
+                             ,'D02','D03','D04','D05','D06','D07','D08','D09','D10','D11','D12')
+R2_all
+```
+
+
+### Lag/Lead Model Performance
+
+```{r}
+
+R2_5 <-c()
+
+datasets <- list(P12,P11,P10,P09,P08,P07,P06,P05,P04,P03,P02,P01,D00,D01,D02,D03,D04,D05,D06,D07,D08,D09,D10,D11,D12)
+
+for (d in datasets) {
+  R2_5 <- cbind(R2_5, summary(lm(SP500~UNRATE+UMCSENT+PCE+ICSA+DXY, d))$adj.r.squared)
+}
+
+R2_5 <-as.data.frame(R2_5)
+names(R2_5) <-c('P12','P11','P10','P09','P08','P07','P06','P05','P04','P03','P02','P01','D00','D01'
+                             ,'D02','D03','D04','D05','D06','D07','D08','D09','D10','D11','D12')
+R2_5
+```
+
+
+### Lag/Lead Visualizations
+
+```{r}
+library(ggplot2)
+
+# transpose
+R2_all <- t(R2_all)
+#R2_all <- cbind(PD = rownames(R2_all), R2_all)
+#rownames(R2_all) <- 1:nrow(R2_all)
+
+R2_5 <- t(R2_5)
+#R2_5 <- cbind(PD = rownames(R2_5), R2_5)
+#rownames(R2_5) <- 1:nrow(R2_5)
+
+df <- as.data.frame(cbind(R2_all,R2_5))
+df <- cbind(PD = rownames(df), df)
+rownames(df) <- 1:nrow(df)
+df$ind <- seq(-12,12)
+
+names(df) <- c('PD', 'All_Predictors','Predictors_5','ind')
+
+# melt
+library(reshape2)
+df <- melt(df, id.vars=c('PD','ind'))
+
+
+ggplot(df, aes(x=ind,y=value,color=variable))+
+         geom_line()+
+         xlab('Price in (-) or Delayed Reaction (+) in Months')+
+         ylab('R2')+
+         scale_x_continuous(labels = as.character(df$ind), breaks = df$ind)
+
+```
+
+Market does not seem to lag because of the poor R2 of lagging models.
+Best R-Squared is 0 months. Market seems to be efficient and reflects current value.
+Market may potentially price in because R-Squared of -1 month is close to the best R2 value.
